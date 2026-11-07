@@ -12,6 +12,10 @@ import {
 } from "@qvac/sdk";
 import type { ModelState, ModelStatus } from "../../../shared/types";
 
+// The AI worker can take over a minute to start on a cold laptop, and the SDK gives up
+// after 30 seconds by default. It reads this just before it starts the worker.
+process.env.QVAC_RPC_INIT_TIMEOUT_MS ??= "300000";
+
 // On integrated graphics the CPU was faster: 12 vs 7 tokens a second on an
 // i5-12450H. Set LLM_DEVICE=gpu on a laptop with a dedicated graphics card.
 const LLM_DEVICE = process.env.LLM_DEVICE === "gpu" ? "gpu" : "cpu";

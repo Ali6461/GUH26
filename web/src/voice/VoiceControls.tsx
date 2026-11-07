@@ -3,11 +3,18 @@
 // because they may not work offline.
 import { useRef, useState } from "react";
 import { api } from "../api";
+import { Icon } from "../Icon";
 import { useLanguage } from "../i18n";
 import { toWav } from "./wav";
 
 // The speech models on this laptop only handle English, so voice is hidden in other languages.
-export function ReadAloudButton({ text }: { text: string }) {
+export function ReadAloudButton({
+  text,
+  variant = "secondary",
+}: {
+  text: string;
+  variant?: "secondary" | "ghost";
+}) {
   const { language } = useLanguage();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -31,7 +38,8 @@ export function ReadAloudButton({ text }: { text: string }) {
 
   return (
     <div className="row">
-      <button type="button" className="secondary" onClick={play} disabled={busy}>
+      <button type="button" className={variant} onClick={play} disabled={busy}>
+        <Icon name="speaker" />
         {busy ? "Preparing…" : "Read aloud"}
       </button>
       {error && <span className="warning">{error}</span>}
@@ -91,10 +99,11 @@ export function RecordAnswerButton({
     <>
       <button
         type="button"
-        className="secondary"
+        className={state === "recording" ? "danger" : "secondary"}
         onClick={state === "recording" ? () => recorder.current?.stop() : start}
         disabled={disabled || state === "transcribing"}
       >
+        <Icon name={state === "recording" ? "stop" : "mic"} />
         {state === "idle" && label}
         {state === "recording" && "Stop recording"}
         {state === "transcribing" && "Transcribing…"}

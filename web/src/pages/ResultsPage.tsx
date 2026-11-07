@@ -14,14 +14,14 @@ export function ResultsPage({ results, onRestart }: Props) {
 
   return (
     <section>
-      <h2>{t("score", { correct, total: results.length })}</h2>
+      <h2 className="board-display score">{t("score", { correct, total: results.length })}</h2>
 
-      {missed.length > 0 && <h3>{t("worthRereading")}</h3>}
-      <ul className="documents">
+      {missed.length > 0 && <h3 className="board-label">{t("worthRereading")}</h3>}
+      <ul className="card-list">
         {missed.map((result) => (
-          <li key={result.questionId}>
+          <li className="card" key={result.questionId}>
             <blockquote>{result.source.quote}</blockquote>
-            <p className="muted">
+            <p className="muted small">
               {t("fromSource", { name: result.source.documentName, page: result.source.page })}
             </p>
           </li>

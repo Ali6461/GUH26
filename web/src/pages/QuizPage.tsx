@@ -2,6 +2,7 @@
 import { useState, type FormEvent } from "react";
 import type { Difficulty, MarkResult, Quiz } from "../../../shared/types";
 import { api } from "../api";
+import { Icon } from "../Icon";
 import { useLanguage, type MessageKey } from "../i18n";
 import type { QuizOptions } from "./ImportPage";
 import { ReadAloudButton, RecordAnswerButton } from "../voice/VoiceControls";
@@ -58,24 +59,30 @@ export function QuizPage({ quiz, options, onFinished }: Props) {
 
   return (
     <section>
-      <p className="muted">
+      <p className="board-label">
         {t("questionOf", {
           n: index + 1,
           total: quiz.questions.length,
           level: t(LEVELS[options.difficulty]),
         })}
       </p>
+      <div className="segments" aria-hidden="true">
+        {quiz.questions.map((item, i) => (
+          <span key={item.id} className={i < index ? "done" : i === index ? "now" : ""} />
+        ))}
+      </div>
       {fewer && index === 0 && (
-        <p className="muted">
+        <p className="muted small">
           {t("fewerQuestions", { asked: options.count, got: quiz.questions.length })}
         </p>
       )}
-      <h2>{question.prompt}</h2>
+      <h2 className="question">{question.prompt}</h2>
       <ReadAloudButton text={question.prompt} />
 
       <form onSubmit={submit}>
         <textarea
           aria-label={t("yourAnswer")}
+          placeholder={t("yourAnswer")}
           rows={4}
           value={answer}
           onChange={(event) => setAnswer(event.target.value)}
@@ -83,20 +90,29 @@ export function QuizPage({ quiz, options, onFinished }: Props) {
         />
         <div className="row">
           <RecordAnswerButton onTranscript={setAnswer} disabled={busy || result !== null} />
+          <span className="spacer" />
           <button type="submit" disabled={busy || result !== null || !answer.trim()}>
             {busy ? t("marking") : t("submitAnswer")}
           </button>
         </div>
       </form>
 
-      {error && <p className="banner error">{error}</p>}
+      {error && (
+        <p className="banner error">
+          <Icon name="alert" /> {error}
+        </p>
+      )}
 
       {result && (
         <div className={result.correct ? "result good" : "result bad"}>
-          <strong>{result.correct ? t("correct") : t("notQuite")}</strong>
+          <strong className="verdict">
+            <Icon name={result.correct ? "check" : "cross"} />
+            {result.correct ? t("correct") : t("notQuite")}
+          </strong>
           <p>{result.feedback}</p>
+          <ReadAloudButton text={result.feedback} variant="ghost" />
           <blockquote>{result.source.quote}</blockquote>
-          <p className="muted">
+          <p className="muted small">
             {t("fromSource", { name: result.source.documentName, page: result.source.page })}
           </p>
           <button onClick={next}>{isLast ? t("seeResults") : t("nextQuestion")}</button>

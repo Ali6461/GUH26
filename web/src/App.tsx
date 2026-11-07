@@ -1,17 +1,19 @@
-// PERSON 3: chat is the default page, and the sidebar switches to the quiz.
+// PERSON 3: the Deadzone shell. Chat is the default page, with notes and the quiz beside it.
 // The quiz flow is import, then quiz, then results.
 import { useEffect, useState } from "react";
 import type { Health, Language, MarkResult, Quiz } from "../../shared/types";
 import { api } from "./api";
 import { useChat } from "./chat/useChat";
 import { useDocuments } from "./chat/useDocuments";
-import { LANGUAGE_OPTIONS, LanguageProvider, useLanguage, type Translate } from "./i18n";
+import { Icon, type IconName } from "./Icon";
+import { LANGUAGE_OPTIONS, LanguageProvider, useLanguage, type MessageKey, type Translate } from "./i18n";
 import { ChatPage } from "./pages/ChatPage";
 import { DEFAULT_QUIZ_OPTIONS, ImportPage } from "./pages/ImportPage";
+import { NotesPage } from "./pages/NotesPage";
 import { QuizPage } from "./pages/QuizPage";
 import { ResultsPage } from "./pages/ResultsPage";
 
-type View = "chat" | "quiz";
+type View = "notes" | "chat" | "quiz";
 
 type Screen =
   | { name: "import" }
@@ -20,7 +22,13 @@ type Screen =
 
 const HEALTH_POLL_MS = 2500;
 
-/** What the banner should say about the chat model and the current job, if anything. */
+const NAV: { view: View; icon: IconName; label: MessageKey }[] = [
+  { view: "notes", icon: "file", label: "modeNotes" },
+  { view: "chat", icon: "chat", label: "modeChat" },
+  { view: "quiz", icon: "quiz", label: "modeQuiz" },
+];
+
+/** What the chat model and the current job are doing, if anything. */
 function statusText(health: Health | null, t: Translate): string {
   if (!health) return "";
   const llm = health.models.find((model) => model.key === "llm");
@@ -86,6 +94,16 @@ function AppContent() {
     : [];
   const status = statusText(health, t);
   const modelErrors = (health?.models ?? []).flatMap((model) => model.error ?? []);
+  const llmState = health?.models.find((model) => model.key === "llm")?.state;
+
+  let pill = { tone: "idle", text: t("statusStandby") };
+  if (serverDown) pill = { tone: "error", text: t("statusOffline") };
+  else if (status) pill = { tone: "busy", text: status };
+  else if (chat.generating) pill = { tone: "busy", text: t("statusAnswering") };
+  else if (llmState === "error") pill = { tone: "error", text: t("statusError") };
+  else if (llmState === "ready") pill = { tone: "ready", text: t("statusReady") };
+
+  const title = NAV.find((item) => item.view === view)!.label;
 
   function openChat(open: () => void) {
     open();
@@ -103,109 +121,100 @@ function AppContent() {
   return (
     <div className="layout">
       <aside className="sidebar">
-        <h1>{t("appTitle")}</h1>
-        <nav className="row" aria-label={t("mode")}>
-          <button
-            type="button"
-            className={view === "chat" ? "" : "secondary"}
-            aria-current={view === "chat" ? "page" : undefined}
-            onClick={() => setView("chat")}
-          >
-            {t("modeChat")}
-          </button>
-          <button
-            type="button"
-            className={view === "quiz" ? "" : "secondary"}
-            aria-current={view === "quiz" ? "page" : undefined}
-            onClick={() => setView("quiz")}
-          >
-            {t("modeQuiz")}
-          </button>
+        <div className="brand">
+          <h1>{t("appTitle")}</h1>
+          <p>{t("tagline")}</p>
+        </div>
+
+        <nav className="nav" aria-label={t("mode")}>
+          {NAV.map((item) => (
+            <button
+              key={item.view}
+              type="button"
+              className="nav-item"
+              aria-current={view === item.view ? "page" : undefined}
+              onClick={() => setView(item.view)}
+            >
+              <Icon name={item.icon} />
+              {t(item.label)}
+            </button>
+          ))}
         </nav>
 
         <button type="button" className="secondary" onClick={() => openChat(chat.startNew)}>
+          <Icon name="plus" />
           {t("newChat")}
         </button>
 
-        <h2>{t("chats")}</h2>
-        {chat.conversations.length === 0 && <p className="muted">{t("noChats")}</p>}
-        <ul className="sidebar-list">
-          {chat.conversations.map((conversation) => (
-            <li key={conversation.id}>
-              <button
-                type="button"
-                className="sidebar-item"
-                aria-current={
-                  view === "chat" && conversation.id === chat.activeId ? "true" : undefined
-                }
-                onClick={() => openChat(() => chat.select(conversation.id))}
-              >
-                {conversation.title}
-              </button>
-              <button
-                type="button"
-                className="sidebar-remove"
-                aria-label={t("deleteChatLabel", { title: conversation.title })}
-                onClick={() => removeChat(conversation.id, conversation.title)}
-              >
-                ×
-              </button>
-            </li>
-          ))}
-        </ul>
-
-        <h2>{t("yourNotes")}</h2>
-        {documents.documents.length === 0 && (
-          <p className="muted">{t("attachHint")}</p>
-        )}
-        <ul className="sidebar-list">
-          {documents.documents.map((document) => (
-            <li key={document.id}>
-              <span className="sidebar-item" title={document.warnings.join(" ")}>
-                {document.name}
-                {document.warnings.length > 0 && ` ${t("notesCheck")}`}
-              </span>
-              <button
-                type="button"
-                className="sidebar-remove"
-                aria-label={t("removeNotesLabel", { name: document.name })}
-                onClick={() => removeNotes(document.id, document.name)}
-              >
-                ×
-              </button>
-            </li>
-          ))}
-        </ul>
-
-        <h2>{t("accessibility")}</h2>
-        <label className="language-menu">
-          {t("language")}{" "}
-          <select
-            value={language}
-            onChange={(event) => setLanguage(event.target.value as Language)}
-          >
-            {LANGUAGE_OPTIONS.map(({ code, label }) => (
-              <option key={label} value={code ?? label} disabled={!code}>
-                {code ? label : `${label} (${t("comingSoon")})`}
-              </option>
+        <div className="sidebar-chats">
+          <h2>{t("chats")}</h2>
+          {chat.conversations.length === 0 && <p className="muted small">{t("noChats")}</p>}
+          <ul className="sidebar-list">
+            {chat.conversations.map((conversation) => (
+              <li key={conversation.id}>
+                <button
+                  type="button"
+                  className="sidebar-item"
+                  aria-current={
+                    view === "chat" && conversation.id === chat.activeId ? "true" : undefined
+                  }
+                  onClick={() => openChat(() => chat.select(conversation.id))}
+                >
+                  {conversation.title}
+                </button>
+                <button
+                  type="button"
+                  className="sidebar-remove"
+                  aria-label={t("deleteChatLabel", { title: conversation.title })}
+                  onClick={() => removeChat(conversation.id, conversation.title)}
+                >
+                  <Icon name="cross" size={14} />
+                </button>
+              </li>
             ))}
-          </select>
-        </label>
+          </ul>
+        </div>
+
+        <div className="sidebar-foot">
+          <label className="language-menu">
+            <span>{t("language")}</span>
+            <select
+              value={language}
+              onChange={(event) => setLanguage(event.target.value as Language)}
+            >
+              {LANGUAGE_OPTIONS.map(({ code, label }) => (
+                <option key={label} value={code ?? label} disabled={!code}>
+                  {code ? label : `${label} (${t("comingSoon")})`}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="muted small">{t("privacy")}</p>
+        </div>
       </aside>
 
       <main className="main">
+        <header className="topbar">
+          <h2>{t(title)}</h2>
+          <span className={`pill pill-${pill.tone}`} role="status" title={pill.text}>
+            <span className="pill-dot" />
+            <span className="pill-text">{pill.text}</span>
+          </span>
+        </header>
+
         {serverDown && (
-          <p className="banner error">{t("serverDown")}</p>
+          <p className="banner error">
+            <Icon name="alert" /> {t("serverDown")}
+          </p>
         )}
         {placeholders.length > 0 && (
           <p className="banner">{t("placeholders", { parts: placeholders.join(", ") })}</p>
         )}
         {modelErrors.map((error) => (
           <p className="banner error" key={error}>
-            {error}
+            <Icon name="alert" /> {error}
           </p>
         ))}
-        {status && <p className="banner">{status}</p>}
 
         {view === "chat" && (
           <ChatPage
@@ -218,13 +227,25 @@ function AppContent() {
           />
         )}
 
+        {view === "notes" && (
+          <div className="scroll-view">
+            <NotesPage
+              documents={documents}
+              health={health}
+              activity={status}
+              onRemove={removeNotes}
+            />
+          </div>
+        )}
+
         {/* Hidden rather than removed, so an unfinished quiz survives a trip to the chat. */}
-        <div className="quiz-view" hidden={view !== "quiz"}>
-          <div className="app">
+        <div className="scroll-view" hidden={view !== "quiz"}>
+          <div className="page">
             {screen.name === "import" && (
               <ImportPage
                 documents={documents}
                 options={quizOptions}
+                activity={health?.activity ?? null}
                 onOptionsChange={setQuizOptions}
                 onQuizReady={(quiz) => setScreen({ name: "quiz", quiz })}
               />

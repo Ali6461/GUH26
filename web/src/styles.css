@@ -89,34 +89,259 @@ blockquote {
   border-color: #dc2626;
 }
 
-/* Shared files */
-.collab-title {
+/* Layout only for the chat and sidebar, so they work until the real design replaces this. */
+html,
+body,
+#root {
+  height: 100%;
+}
+
+.layout {
+  display: flex;
+  height: 100%;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  gap: 8px;
+  box-sizing: border-box;
+  width: 260px;
+  padding: 16px;
+  overflow-y: auto;
+  border-right: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+}
+
+.sidebar h1 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.sidebar h2 {
+  margin: 12px 0 0;
+  font-size: 0.9rem;
+}
+
+.sidebar p {
   margin: 0;
 }
 
+.sidebar-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sidebar-list li {
+  display: flex;
+  align-items: center;
+}
+
+.sidebar-item {
+  flex: 1;
+  min-width: 0;
+  padding: 4px;
+  overflow: hidden;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Smaller padding so the three mode buttons fit on one line in the sidebar. */
+.sidebar nav button {
+  flex: 1 1 auto;
+  padding: 6px 8px;
+}
+
+.sidebar-item[aria-current],
+nav [aria-current] {
+  font-weight: 700;
+}
+
+.sidebar-remove {
+  flex: none;
+  padding: 0 8px;
+  background: none;
+  border: none;
+  color: inherit;
+}
+
+.main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.main > .banner {
+  margin: 8px 16px 0;
+}
+
+.quiz-view {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.quiz-options {
+  margin-bottom: 12px;
+  gap: 16px;
+}
+
+.chat {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.chat-log {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.chat-column {
+  box-sizing: border-box;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+.chat-empty {
+  margin-top: 20vh;
+  text-align: center;
+}
+
+.message {
+  margin: 16px 0;
+  overflow-wrap: anywhere;
+}
+
+.message.user {
+  width: fit-content;
+  max-width: 85%;
+  margin-left: auto;
+  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-radius: 8px;
+  white-space: pre-wrap;
+}
+
+.message pre {
+  overflow-x: auto;
+}
+
+.citation,
+.source {
+  padding: 0 2px;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+}
+
+.message-actions {
+  margin-top: 8px;
+}
+
+.composer {
+  flex: none;
+  padding: 8px 0 16px;
+}
+
+.composer textarea {
+  display: block;
+  max-height: 200px;
+  margin: 0 0 8px;
+  resize: none;
+}
+
+.attach {
+  padding: 8px 16px;
+  border: 1px solid color-mix(in srgb, currentColor 40%, transparent);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.attach input {
+  display: none;
+}
+
+.spacer {
+  flex: 1;
+}
+
+@media (max-width: 700px) {
+  .layout {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+    max-height: 35%;
+    border-right: none;
+    border-bottom: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  }
+
+  .main {
+    min-height: 0;
+  }
+}
+
+/* Shared files, styled like the chat and quiz so the third mode fits the sidebar layout. */
+.collab-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: 1.1rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Fills most of the main area, leaving room for the header, banners and the code row. */
 .collab-text {
-  min-height: 60vh;
+  display: block;
+  min-height: max(240px, calc(100vh - 280px));
+  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-radius: 8px;
   font-family: ui-monospace, Consolas, monospace;
   font-size: 14px;
   resize: vertical;
 }
 
 .collab-code {
+  min-width: 0;
+  padding: 4px 8px;
   overflow-wrap: anywhere;
+  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-radius: 4px;
   font-size: 12px;
   opacity: 0.8;
 }
 
 .collab-input {
   flex: 1;
+  box-sizing: border-box;
   min-width: 240px;
   padding: 8px;
+  border: 1px solid color-mix(in srgb, currentColor 40%, transparent);
+  border-radius: 4px;
   font: inherit;
 }
 
-.file-button {
-  padding: 8px 16px;
-  border: 1px solid currentColor;
-  border-radius: 4px;
-  cursor: pointer;
+@media (max-width: 700px) {
+  /* The sidebar takes the top of the screen here, so the editor gets less height. */
+  .collab-text {
+    min-height: 40vh;
+  }
+
+  .collab-input {
+    min-width: 0;
+  }
 }

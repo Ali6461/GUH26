@@ -15,8 +15,12 @@ interface IndexedPassage extends Passage {
 
 const VECTORS_FILE = resolve(DATA_DIR, "vectors.json");
 const BATCH_SIZE = 8;
-/** Measured: related text scored about 0.55 and unrelated text below 0.2. */
-const MIN_SCORE = 0.3;
+/**
+ * Measured on 171 pages of real lecture notes: on-topic questions scored 0.36 to 0.59,
+ * while small talk and unrelated questions mostly stayed below 0.33. Longer notes
+ * score higher by chance, so 0.3 let "hi" pull in passages.
+ */
+const MIN_SCORE = 0.35;
 
 // EmbeddingGemma was trained with these prefixes and retrieves better with them.
 const asQuery = (text: string) => `task: search result | query: ${text}`;
@@ -81,12 +85,16 @@ export function removeFromIndex(documentId: string): void {
 }
 
 /** Returns the passages that best match the query, skipping anything unrelated. */
-export async function search(query: string, topK: number): Promise<SourceRef[]> {
+export async function search(
+  query: string,
+  topK: number,
+  options: { anyScore?: boolean } = {},
+): Promise<SourceRef[]> {
   if (index.length === 0) return [];
   const [vector] = await embedTexts([asQuery(query)]);
   return index
     .map((passage) => ({ passage, score: cosineSimilarity(vector, passage.vector) }))
-    .filter(({ score }) => score >= MIN_SCORE)
+    .filter(({ score }) => options.anyScore || score >= MIN_SCORE)
     .sort((a, b) => b.score - a.score)
     .slice(0, topK)
     .map(({ passage }) => ({

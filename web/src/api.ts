@@ -3,7 +3,9 @@ import type {
   ApiError,
   ChatEvent,
   ChatMessage,
+  Difficulty,
   Health,
+  Language,
   MarkResult,
   Quiz,
   StudyDocument,
@@ -47,11 +49,12 @@ export const api = {
     messages: ChatMessage[],
     onEvent: (event: ChatEvent) => void,
     signal?: AbortSignal,
+    language?: Language,
   ) {
     const response = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages }),
+      body: JSON.stringify({ messages, language }),
       signal,
     });
     if (!response.ok || !response.body) await parse<never>(response);
@@ -70,11 +73,18 @@ export const api = {
     }
   },
 
-  createQuiz: (documentIds: string[], count: number) =>
-    postJson<Quiz>("/api/quizzes", { documentIds, count }),
+  createQuiz: (
+    documentIds: string[],
+    count: number,
+    difficulty: Difficulty,
+    language: Language,
+  ) => postJson<Quiz>("/api/quizzes", { documentIds, count, difficulty, language }),
 
-  answer: (quizId: string, questionId: string, answer: string) =>
-    postJson<MarkResult>(`/api/quizzes/${quizId}/questions/${questionId}/answer`, { answer }),
+  answer: (quizId: string, questionId: string, answer: string, language: Language) =>
+    postJson<MarkResult>(`/api/quizzes/${quizId}/questions/${questionId}/answer`, {
+      answer,
+      language,
+    }),
 
   async transcribe(audio: Blob) {
     const form = new FormData();

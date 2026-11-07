@@ -1,43 +1,54 @@
 // PERSON 3: choose notes and start a quiz.
-import { useEffect, useState, type ChangeEvent } from "react";
-import type { Quiz, StudyDocument } from "../../../shared/types";
+import { useState, type ChangeEvent } from "react";
+import type { Difficulty, Language, Quiz } from "../../../shared/types";
 import { api } from "../api";
+import { ACCEPTED_FILES, type Documents } from "../chat/useDocuments";
+import { useLanguage, type MessageKey, type Translate } from "../i18n";
 
-const QUESTION_COUNT = 5;
+const QUESTION_COUNTS = [3, 5, 10, 15];
+const DIFFICULTIES: { value: Difficulty; label: MessageKey }[] = [
+  { value: "easy", label: "difficultyEasy" },
+  { value: "medium", label: "difficultyMedium" },
+  { value: "hard", label: "difficultyHard" },
+];
+/** Measured on 171 pages of real notes with a laptop CPU. Medium is an estimate. */
+const SECONDS_PER_QUESTION: Record<Difficulty, number> = { easy: 15, medium: 15, hard: 25 };
 
-export function ImportPage({ onQuizReady }: { onQuizReady: (quiz: Quiz) => void }) {
-  const [documents, setDocuments] = useState<StudyDocument[]>([]);
+export interface QuizOptions {
+  count: number;
+  difficulty: Difficulty;
+}
+
+export const DEFAULT_QUIZ_OPTIONS: QuizOptions = { count: 5, difficulty: "medium" };
+
+function timeEstimate({ count, difficulty }: QuizOptions, language: Language, t: Translate): string {
+  // Each question also has to be translated.
+  const seconds = count * SECONDS_PER_QUESTION[difficulty] * (language === "en" ? 1 : 2);
+  if (seconds < 60) return t("aboutSeconds", { n: seconds });
+  const minutes = Math.round(seconds / 60);
+  return minutes === 1 ? t("aboutMinute") : t("aboutMinutes", { n: minutes });
+}
+
+interface Props {
+  documents: Documents;
+  options: QuizOptions;
+  onOptionsChange: (options: QuizOptions) => void;
+  onQuizReady: (quiz: Quiz) => void;
+}
+
+export function ImportPage({ documents: notes, options, onOptionsChange, onQuizReady }: Props) {
+  const { language, t } = useLanguage();
   const [selected, setSelected] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-
-  useEffect(() => {
-    api.listDocuments().then(setDocuments, (e: Error) => setError(e.message));
-  }, []);
-
-  async function run(task: () => Promise<void>) {
-    setBusy(true);
-    setError("");
-    try {
-      await task();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong.");
-    } finally {
-      setBusy(false);
-    }
-  }
+  const working = busy || notes.uploading;
 
   function upload(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);
     event.target.value = "";
-    void run(async () => {
-      for (const file of files) {
-        const document = await api.uploadDocument(file);
-        setDocuments((current) => [...current, document]);
-        if (document.pages.length > 0) {
-          setSelected((current) => [...current, document.id]);
-        }
-      }
+    void notes.upload(files).then((added) => {
+      const readable = added.filter((document) => document.pages.length > 0);
+      setSelected((current) => [...current, ...readable.map((document) => document.id)]);
     });
   }
 
@@ -47,29 +58,39 @@ export function ImportPage({ onQuizReady }: { onQuizReady: (quiz: Quiz) => void 
     );
   }
 
-  function startQuiz() {
-    void run(async () => {
-      const quiz = await api.createQuiz(selected, QUESTION_COUNT);
+  async function startQuiz() {
+    setBusy(true);
+    setError("");
+    try {
+      // Notes removed from the sidebar may still be ticked here.
+      const known = selected.filter((id) => notes.documents.some((d) => d.id === id));
+      const quiz = await api.createQuiz(known, options.count, options.difficulty, language);
       if (quiz.questions.length === 0) {
-        throw new Error("Couldn't write any questions from those notes.");
+        throw new Error(t("noQuestions"));
       }
       onQuizReady(quiz);
-    });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("somethingWrong"));
+    } finally {
+      setBusy(false);
+    }
   }
+
+  const canStart = notes.documents.some((d) => selected.includes(d.id));
 
   return (
     <section>
-      <h2>Add your notes</h2>
+      <h2>{t("makeQuiz")}</h2>
       <input
         type="file"
         multiple
-        accept=".txt,.md,.pdf,.pptx,.png,.jpg,.jpeg,.webp"
+        accept={ACCEPTED_FILES}
         onChange={upload}
-        disabled={busy}
+        disabled={working}
       />
 
       <ul className="documents">
-        {documents.map((document) => (
+        {notes.documents.map((document) => (
           <li key={document.id}>
             <label>
               <input
@@ -89,10 +110,47 @@ export function ImportPage({ onQuizReady }: { onQuizReady: (quiz: Quiz) => void 
         ))}
       </ul>
 
-      {error && <p className="banner error">{error}</p>}
-      <button onClick={startQuiz} disabled={busy || selected.length === 0}>
-        {busy ? "Working…" : "Start quiz"}
+      <div className="row quiz-options">
+        <label>
+          {t("questions")}{" "}
+          <select
+            value={options.count}
+            disabled={working}
+            onChange={(event) =>
+              onOptionsChange({ ...options, count: Number(event.target.value) })
+            }
+          >
+            {QUESTION_COUNTS.map((count) => (
+              <option key={count} value={count}>
+                {count}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          {t("difficulty")}{" "}
+          <select
+            value={options.difficulty}
+            disabled={working}
+            onChange={(event) =>
+              onOptionsChange({ ...options, difficulty: event.target.value as Difficulty })
+            }
+          >
+            {DIFFICULTIES.map(({ value, label }) => (
+              <option key={value} value={value}>
+                {t(label)}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      {t("aiLanguageWarning") && <p className="warning">{t("aiLanguageWarning")}</p>}
+      {(error || notes.error) && <p className="banner error">{error || notes.error}</p>}
+      <button onClick={startQuiz} disabled={working || !canStart}>
+        {working ? t("working") : t("startQuiz")}
       </button>
+      <p className="muted">{t("writingTime", { time: timeEstimate(options, language, t) })}</p>
     </section>
   );
 }

@@ -2,11 +2,10 @@
 // The browser converts recordings to 16 kHz WAV first, so ffmpeg isn't needed.
 import { textToSpeech, transcribe as qvacTranscribe } from "@qvac/sdk";
 import { ensureModel } from "../ai/models";
+import { speakableText } from "./speakable";
 import { pcmToWav } from "./wav";
 
 export const VOICE_IS_PLACEHOLDER = false;
-
-const MAX_SPOKEN_CHARS = 4000;
 
 export interface SpokenAudio {
   mimeType: string;
@@ -22,16 +21,6 @@ export async function transcribe(audio: Buffer, _mimeType: string): Promise<stri
   const text = await qvacTranscribe({ modelId, audioChunk: audio as never });
   // Whisper labels silence and noise like [BLANK_AUDIO] instead of leaving it empty.
   return text.replace(/\[[^\]]*\]|\([^)]*\)/g, " ").replace(/\s+/g, " ").trim();
-}
-
-/** Citations and markdown symbols shouldn't be read out. */
-export function speakableText(text: string): string {
-  return text
-    .replace(/\[\d+\]/g, "")
-    .replace(/[*_#`]/g, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, MAX_SPOKEN_CHARS);
 }
 
 /** Returns null when there is nothing to say, such as text made only of symbols. */

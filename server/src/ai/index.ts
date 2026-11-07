@@ -4,6 +4,8 @@ import { cancel, completion } from "@qvac/sdk";
 import type {
   ChatEvent,
   ChatMessage,
+  Difficulty,
+  Language,
   MarkResult,
   Question,
   StudyDocument,
@@ -12,6 +14,7 @@ import { setActivity, withLlm } from "./models";
 import { search } from "./rag";
 import {
   documentPassages,
+  mentionsNotes,
   parseJsonObject,
   pickSpread,
   verifyQuote,
@@ -24,8 +27,16 @@ export const AI_IS_PLACEHOLDER = false;
 // laptop CPU that saves far more time than the reasoning is worth here.
 const NO_THINK = "/no_think";
 
-const MAX_ANSWER_TOKENS = 512;
-const MAX_JSON_TOKENS = 220;
+const MAX_ANSWER_TOKENS = 1024;
+const MAX_JSON_TOKENS = 300;
+const MAX_MISSES_IN_A_ROW = 3;
+const MAX_SEARCH_TRANSLATION_TOKENS = 120;
+/** Shorter than this, a passage has nothing left to ask about. */
+const MIN_REMAINING_CHARS = 40;
+/** About 1,500 tokens, which leaves room for the notes and the reply in the model's memory. */
+const MAX_MESSAGE_CHARS = 6000;
+/** EmbeddingGemma's limit is 2,048 tokens, and the start of a message says what it's about. */
+const MAX_SEARCH_CHARS = 1500;
 /** Each passage costs seconds of reading time on a laptop, so keep this small. */
 const CHAT_PASSAGES = 3;
 const CHAT_HISTORY_MESSAGES = 4;
@@ -33,6 +44,26 @@ const MAX_HISTORY_CHARS = 700;
 const SHORT_FOLLOW_UP_CHARS = 40;
 
 type ChatTurn = { role: "system" | "user" | "assistant"; content: string };
+
+const QUESTION_STYLES: Record<Difficulty, string> = {
+  easy:
+    "Write one easy question that asks for a single fact or definition stated directly in " +
+    "the notes, which can be answered in a few words.",
+  medium:
+    "Write one medium question that asks the student to explain an important idea from the " +
+    "notes in their own words.",
+  hard:
+    "Write one hard question that makes the student reason, not just remember: for example, " +
+    "why something in the notes happens, or how two ideas in the notes connect. Everything " +
+    "needed for the answer must be in the notes, so don't ask about situations they don't cover.",
+};
+
+export const DIFFICULTIES = Object.keys(QUESTION_STYLES) as Difficulty[];
+
+const UZBEK_RULE = "Write in Uzbek, using the Latin alphabet.";
+
+/** Unknown values fall back to English rather than failing the request. */
+export const toLanguage = (value: unknown): Language => (value === "uz" ? "uz" : "en");
 
 async function askForJson(
   history: ChatTurn[],
@@ -62,7 +93,17 @@ async function askForJson(
   });
 }
 
-async function writeQuestion(passage: Passage, asked: string[]): Promise<Question | null> {
+async function writeQuestion(
+  passage: Passage,
+  asked: Question[],
+  difficulty: Difficulty,
+): Promise<Question | null> {
+  // The model tends to pick the same sentence again, even when told not to, so hide
+  // the sentences that already have a question. Stop if there's too little left.
+  const remaining = asked
+    .reduce((text, question) => text.replace(question.source.quote, " "), passage.text)
+    .trim();
+  if (remaining.length < MIN_REMAINING_CHARS) return null;
   const reply = await askForJson(
     [
       {
@@ -74,9 +115,11 @@ async function writeQuestion(passage: Passage, asked: string[]): Promise<Questio
       {
         role: "user",
         content:
-          `Study notes:\n"""\n${passage.text}\n"""\n\n` +
-          (asked.length > 0 ? `Don't repeat these questions:\n- ${asked.join("\n- ")}\n\n` : "") +
-          "Write one question that tests understanding of an important idea in the notes. " +
+          `Study notes:\n"""\n${remaining}\n"""\n\n` +
+          (asked.length > 0
+            ? `Don't repeat these questions:\n- ${asked.map((q) => q.prompt).join("\n- ")}\n\n`
+            : "") +
+          `${QUESTION_STYLES[difficulty]} ` +
           'It must make sense on its own, so never say "the passage" or "the notes".\n' +
           'Reply in JSON. "question": the question. "answer": a correct answer in one or two ' +
           'sentences. "quote": the sentence copied word for word from the notes that proves ' +
@@ -88,7 +131,7 @@ async function writeQuestion(passage: Passage, asked: string[]): Promise<Questio
 
   const question = typeof reply?.question === "string" ? reply.question.trim() : "";
   const answer = typeof reply?.answer === "string" ? reply.answer.trim() : "";
-  const quote = typeof reply?.quote === "string" ? verifyQuote(reply.quote, passage.text) : null;
+  const quote = typeof reply?.quote === "string" ? verifyQuote(reply.quote, remaining) : null;
   // A question whose quote can't be found in the notes is thrown away.
   if (!question || !answer || !quote) return null;
 
@@ -105,9 +148,38 @@ async function writeQuestion(passage: Passage, asked: string[]): Promise<Questio
   };
 }
 
+/**
+ * Questions are written in English first, because a quote can only be checked against
+ * the notes if the model copies it rather than translating it. Only the wording the
+ * student reads is translated, and the English stays if translation fails.
+ */
+async function translateQuestion(question: Question): Promise<void> {
+  const reply = await askForJson(
+    [
+      {
+        role: "user",
+        content:
+          `Translate this revision question and answer into Uzbek, using the Latin alphabet. ` +
+          `Keep formulas and technical terms accurate.\n` +
+          `Question: ${question.prompt}\nAnswer: ${question.expectedAnswer}\n` +
+          `Reply in JSON with "question" and "answer". ${NO_THINK}`,
+      },
+    ],
+    { question: { type: "string" }, answer: { type: "string" } },
+  );
+  if (typeof reply?.question === "string" && reply.question.trim()) {
+    question.prompt = reply.question.trim();
+  }
+  if (typeof reply?.answer === "string" && reply.answer.trim()) {
+    question.expectedAnswer = reply.answer.trim();
+  }
+}
+
 export async function generateQuestions(
   documents: StudyDocument[],
   count: number,
+  difficulty: Difficulty = "medium",
+  language: Language = "en",
 ): Promise<Question[]> {
   const passages = documents.flatMap(documentPassages);
   const questions: Question[] = [];
@@ -117,17 +189,27 @@ export async function generateQuestions(
     ...pickSpread(passages, Math.ceil(count / 2)),
   ];
 
+  let misses = 0;
   try {
     for (const passage of attempts) {
-      if (questions.length >= count) break;
+      // Short notes run out of new questions, and each extra try costs about 10 seconds.
+      if (questions.length >= count || misses >= MAX_MISSES_IN_A_ROW) break;
       setActivity(`Writing question ${questions.length + 1} of ${count}`);
-      const question = await writeQuestion(
-        passage,
-        questions.map((q) => q.prompt),
-      );
+      const question = await writeQuestion(passage, questions, difficulty);
       // Two questions proving the same sentence are really one question asked twice.
       const repeated = questions.some((q) => q.source.quote === question?.source.quote);
-      if (question && !repeated) questions.push(question);
+      if (question && !repeated) {
+        questions.push(question);
+        misses = 0;
+      } else {
+        misses++;
+      }
+    }
+    if (language === "uz") {
+      for (const [i, question] of questions.entries()) {
+        setActivity(`Writing question ${i + 1} of ${questions.length}`);
+        await translateQuestion(question);
+      }
     }
   } finally {
     setActivity(null);
@@ -135,7 +217,11 @@ export async function generateQuestions(
   return questions;
 }
 
-export async function markAnswer(question: Question, answer: string): Promise<MarkResult> {
+export async function markAnswer(
+  question: Question,
+  answer: string,
+  language: Language = "en",
+): Promise<MarkResult> {
   const reply = await askForJson(
     [
       {
@@ -154,7 +240,9 @@ export async function markAnswer(question: Question, answer: string): Promise<Ma
           `Student's answer: """${answer}"""\n\n` +
           'Reply in JSON. "correct": true if the answer shows the key idea, otherwise false. ' +
           '"feedback": one or two friendly sentences, speaking to the student, on what was ' +
-          `right and what was missing. ${NO_THINK}`,
+          "right and what was missing. " +
+          (language === "uz" ? `Write "feedback" in Uzbek, using the Latin alphabet. ` : "") +
+          NO_THINK,
       },
     ],
     { correct: { type: "boolean" }, feedback: { type: "string" } },
@@ -172,15 +260,17 @@ export async function markAnswer(question: Question, answer: string): Promise<Ma
   };
 }
 
-function chatInstructions(passages: string[]): string {
+function chatInstructions(passages: string[], language: Language): string {
   const base =
     "You are a friendly study partner helping a student revise. Be clear and concise. " +
-    'Talk directly to the student: say "your notes", never "the student". ';
+    'Talk directly to the student: say "your notes", never "the student". ' +
+    (language === "uz" ? `${UZBEK_RULE} ` : "");
   if (passages.length === 0) {
     return (
       base +
-      "Nothing relevant was found in the student's notes. Start with the sentence \"Your notes " +
-      "don't cover this.\" Then answer from your general knowledge if you can."
+      "Nothing in the student's notes matched this message, so reply from your general " +
+      "knowledge like a normal chat. Only if they ask about their notes or a lecture, tell them " +
+      "you couldn't find that in their notes."
     );
   }
   return (
@@ -198,7 +288,27 @@ function searchQuery(messages: ChatMessage[]): string {
   const asked = messages.filter((message) => message.role === "user");
   const last = asked[asked.length - 1]?.content ?? "";
   const previous = asked[asked.length - 2]?.content;
-  return last.length < SHORT_FOLLOW_UP_CHARS && previous ? `${previous}\n${last}` : last;
+  const query = last.length < SHORT_FOLLOW_UP_CHARS && previous ? `${previous}\n${last}` : last;
+  return query.slice(0, MAX_SEARCH_CHARS);
+}
+
+/** Notes are usually in English, so an Uzbek question is searched for in English. */
+async function toEnglish(text: string): Promise<string> {
+  return withLlm(async (modelId) => {
+    const run = completion({
+      modelId,
+      stream: false,
+      captureThinking: true,
+      generationParams: { temp: 0.1, predict: MAX_SEARCH_TRANSLATION_TOKENS },
+      history: [
+        {
+          role: "user",
+          content: `Translate this into English. Reply with only the translation.\n${text} ${NO_THINK}`,
+        },
+      ],
+    });
+    return (await run.final).contentText.trim() || text;
+  });
 }
 
 /** Answers from the notes, sending events as they happen. Stops when signal aborts. */
@@ -206,8 +316,11 @@ export async function chat(
   messages: ChatMessage[],
   send: (event: ChatEvent) => void,
   signal: AbortSignal,
+  language: Language = "en",
 ): Promise<void> {
-  const sources = await search(searchQuery(messages), CHAT_PASSAGES);
+  const asked = searchQuery(messages);
+  const query = language === "uz" ? await toEnglish(asked) : asked;
+  const sources = await search(query, CHAT_PASSAGES, { anyScore: mentionsNotes(query) });
   send({ type: "sources", sources });
 
   const recent = messages.slice(-CHAT_HISTORY_MESSAGES).map((message, i, all) => {
@@ -215,12 +328,13 @@ export async function chat(
     return {
       role: message.role,
       content: isLast
-        ? `${message.content} ${NO_THINK}`
-        : message.content.slice(0, MAX_HISTORY_CHARS),
+        ? `${message.content.slice(0, MAX_MESSAGE_CHARS)} ${language === "uz" ? `(${UZBEK_RULE}) ` : ""}${NO_THINK}`
+        : // Old citations point at old passages, so they'd mislead the model here.
+          message.content.replace(/\s*\[\d+\]/g, "").slice(0, MAX_HISTORY_CHARS),
     };
   });
   const history: ChatTurn[] = [
-    { role: "system", content: chatInstructions(sources.map((source) => source.quote)) },
+    { role: "system", content: chatInstructions(sources.map((source) => source.quote), language) },
     ...recent,
   ];
 

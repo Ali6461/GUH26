@@ -1,5 +1,6 @@
 // PERSON 3: the score and what to reread.
 import type { MarkResult } from "../../../shared/types";
+import { useLanguage } from "../i18n";
 
 interface Props {
   results: MarkResult[];
@@ -7,28 +8,27 @@ interface Props {
 }
 
 export function ResultsPage({ results, onRestart }: Props) {
+  const { t } = useLanguage();
   const correct = results.filter((result) => result.correct).length;
   const missed = results.filter((result) => !result.correct);
 
   return (
     <section>
-      <h2>
-        You got {correct} of {results.length}
-      </h2>
+      <h2>{t("score", { correct, total: results.length })}</h2>
 
-      {missed.length > 0 && <h3>Worth rereading</h3>}
+      {missed.length > 0 && <h3>{t("worthRereading")}</h3>}
       <ul className="documents">
         {missed.map((result) => (
           <li key={result.questionId}>
             <blockquote>{result.source.quote}</blockquote>
             <p className="muted">
-              From {result.source.documentName}, page {result.source.page}
+              {t("fromSource", { name: result.source.documentName, page: result.source.page })}
             </p>
           </li>
         ))}
       </ul>
 
-      <button onClick={onRestart}>Revise again</button>
+      <button onClick={onRestart}>{t("reviseAgain")}</button>
     </section>
   );
 }

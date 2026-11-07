@@ -3,9 +3,12 @@
 // because they may not work offline.
 import { useRef, useState } from "react";
 import { api } from "../api";
+import { useLanguage } from "../i18n";
 import { toWav } from "./wav";
 
+// The speech models on this laptop only handle English, so voice is hidden in other languages.
 export function ReadAloudButton({ text }: { text: string }) {
+  const { language } = useLanguage();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -24,6 +27,8 @@ export function ReadAloudButton({ text }: { text: string }) {
     }
   }
 
+  if (language !== "en") return null;
+
   return (
     <div className="row">
       <button type="button" className="secondary" onClick={play} disabled={busy}>
@@ -37,9 +42,16 @@ export function ReadAloudButton({ text }: { text: string }) {
 interface RecordProps {
   onTranscript: (text: string) => void;
   disabled?: boolean;
+  /** What the button says before recording. */
+  label?: string;
 }
 
-export function RecordAnswerButton({ onTranscript, disabled }: RecordProps) {
+export function RecordAnswerButton({
+  onTranscript,
+  disabled,
+  label = "Speak answer",
+}: RecordProps) {
+  const { language } = useLanguage();
   const recorder = useRef<MediaRecorder | null>(null);
   const [state, setState] = useState<"idle" | "recording" | "transcribing">("idle");
   const [error, setError] = useState("");
@@ -73,6 +85,8 @@ export function RecordAnswerButton({ onTranscript, disabled }: RecordProps) {
     }
   }
 
+  if (language !== "en") return null;
+
   return (
     <>
       <button
@@ -81,7 +95,7 @@ export function RecordAnswerButton({ onTranscript, disabled }: RecordProps) {
         onClick={state === "recording" ? () => recorder.current?.stop() : start}
         disabled={disabled || state === "transcribing"}
       >
-        {state === "idle" && "Speak answer"}
+        {state === "idle" && label}
         {state === "recording" && "Stop recording"}
         {state === "transcribing" && "Transcribing…"}
       </button>

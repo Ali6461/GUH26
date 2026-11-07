@@ -70,6 +70,16 @@ export function cosineSimilarity(a: number[], b: number[]): number {
   return aSize && bSize ? dot / Math.sqrt(aSize * bSize) : 0;
 }
 
+/**
+ * True for requests like "summarise my notes". They name no topic, so they score
+ * low against every passage even though the student clearly wants their notes.
+ */
+export function mentionsNotes(text: string): boolean {
+  return /\b(my|these|this|the|our)\s+(notes?|slides?|lectures?|documents?|files?|pdfs?|materials?)\b|konspekt/i.test(
+    text,
+  );
+}
+
 /** Lowercases and flattens spacing, quotes and dashes, so only the wording is compared. */
 function normalise(text: string): { value: string; positions: number[] } {
   let value = "";

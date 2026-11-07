@@ -7,6 +7,7 @@ import {
   type CollabServerMessage,
   type CollabStatus,
 } from "../../../shared/collab";
+import { useLanguage } from "../i18n";
 import { collabApi } from "./collabApi";
 
 interface Props {
@@ -15,6 +16,7 @@ interface Props {
 }
 
 export function CollabEditor({ roomKey, onBack }: Props) {
+  const { t } = useLanguage();
   const textarea = useRef<HTMLTextAreaElement>(null);
   const doc = useRef(new CollabDoc());
   const socket = useRef<WebSocket | null>(null);
@@ -97,7 +99,7 @@ export function CollabEditor({ roomKey, onBack }: Props) {
     if (socket.current?.readyState === WebSocket.OPEN) {
       socket.current.send(JSON.stringify({ type: "ops", ops }));
     } else {
-      setError("Not connected, so that change wasn't saved.");
+      setError(t("collabNotSaved"));
     }
   }
 
@@ -121,31 +123,29 @@ export function CollabEditor({ roomKey, onBack }: Props) {
   return (
     <section>
       <div className="row">
-        <button className="secondary" onClick={onBack}>
-          Back
+        <button type="button" className="secondary" onClick={onBack}>
+          {t("collabBack")}
         </button>
-        <h2 className="collab-title">{name || "Waiting for the file…"}</h2>
+        <h2 className="collab-title">{name || t("collabWaitingForFile")}</h2>
       </div>
 
       <p className="muted">
         {!connected
-          ? "Reconnecting to the local server…"
-          : `${status?.peers ?? 0} nearby ${status?.peers === 1 ? "laptop" : "laptops"} connected · ${
-              status?.writers ?? 1
-            } can edit`}
+          ? t("collabReconnecting")
+          : t(status?.peers === 1 ? "collabPeersOne" : "collabPeersMany", {
+              peers: status?.peers ?? 0,
+              writers: status?.writers ?? 1,
+            })}
       </p>
       {connected && !writable && (
-        <p className="banner">
-          You can read this file. You'll be able to edit as soon as a laptop that already has it
-          connects and lets you in.
-        </p>
+        <p className="banner">{t("collabReadOnlyNotice")}</p>
       )}
       {error && <p className="banner error">{error}</p>}
 
       <textarea
         ref={textarea}
         className="collab-text"
-        aria-label="Shared file"
+        aria-label={t("collabFileLabel")}
         spellCheck={false}
         readOnly={!writable || !connected}
         onInput={onInput}
@@ -153,11 +153,11 @@ export function CollabEditor({ roomKey, onBack }: Props) {
 
       <div className="row">
         <code className="collab-code">{roomKey}</code>
-        <button className="secondary" onClick={copyCode}>
-          {copied ? "Copied" : "Copy code"}
+        <button type="button" className="secondary" onClick={copyCode}>
+          {copied ? t("copied") : t("collabCopyCode")}
         </button>
-        <button className="secondary" onClick={download}>
-          Download
+        <button type="button" className="secondary" onClick={download}>
+          {t("collabDownload")}
         </button>
       </div>
     </section>

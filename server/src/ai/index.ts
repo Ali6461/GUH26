@@ -12,6 +12,7 @@ import { setActivity, withLlm } from "./models";
 import { search } from "./rag";
 import {
   documentPassages,
+  mentionsNotes,
   parseJsonObject,
   pickSpread,
   verifyQuote,
@@ -24,8 +25,12 @@ export const AI_IS_PLACEHOLDER = false;
 // laptop CPU that saves far more time than the reasoning is worth here.
 const NO_THINK = "/no_think";
 
-const MAX_ANSWER_TOKENS = 512;
+const MAX_ANSWER_TOKENS = 1024;
 const MAX_JSON_TOKENS = 220;
+/** About 1,500 tokens, which leaves room for the notes and the reply in the model's memory. */
+const MAX_MESSAGE_CHARS = 6000;
+/** EmbeddingGemma's limit is 2,048 tokens, and the start of a message says what it's about. */
+const MAX_SEARCH_CHARS = 1500;
 /** Each passage costs seconds of reading time on a laptop, so keep this small. */
 const CHAT_PASSAGES = 3;
 const CHAT_HISTORY_MESSAGES = 4;
@@ -179,8 +184,9 @@ function chatInstructions(passages: string[]): string {
   if (passages.length === 0) {
     return (
       base +
-      "Nothing relevant was found in the student's notes. Start with the sentence \"Your notes " +
-      "don't cover this.\" Then answer from your general knowledge if you can."
+      "Nothing in the student's notes matched this message, so reply from your general " +
+      "knowledge like a normal chat. Only if they ask about their notes or a lecture, tell them " +
+      "you couldn't find that in their notes."
     );
   }
   return (
@@ -198,7 +204,8 @@ function searchQuery(messages: ChatMessage[]): string {
   const asked = messages.filter((message) => message.role === "user");
   const last = asked[asked.length - 1]?.content ?? "";
   const previous = asked[asked.length - 2]?.content;
-  return last.length < SHORT_FOLLOW_UP_CHARS && previous ? `${previous}\n${last}` : last;
+  const query = last.length < SHORT_FOLLOW_UP_CHARS && previous ? `${previous}\n${last}` : last;
+  return query.slice(0, MAX_SEARCH_CHARS);
 }
 
 /** Answers from the notes, sending events as they happen. Stops when signal aborts. */
@@ -207,7 +214,8 @@ export async function chat(
   send: (event: ChatEvent) => void,
   signal: AbortSignal,
 ): Promise<void> {
-  const sources = await search(searchQuery(messages), CHAT_PASSAGES);
+  const query = searchQuery(messages);
+  const sources = await search(query, CHAT_PASSAGES, { anyScore: mentionsNotes(query) });
   send({ type: "sources", sources });
 
   const recent = messages.slice(-CHAT_HISTORY_MESSAGES).map((message, i, all) => {
@@ -215,8 +223,9 @@ export async function chat(
     return {
       role: message.role,
       content: isLast
-        ? `${message.content} ${NO_THINK}`
-        : message.content.slice(0, MAX_HISTORY_CHARS),
+        ? `${message.content.slice(0, MAX_MESSAGE_CHARS)} ${NO_THINK}`
+        : // Old citations point at old passages, so they'd mislead the model here.
+          message.content.replace(/\s*\[\d+\]/g, "").slice(0, MAX_HISTORY_CHARS),
     };
   });
   const history: ChatTurn[] = [

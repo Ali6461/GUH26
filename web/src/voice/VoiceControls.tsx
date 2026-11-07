@@ -37,9 +37,15 @@ export function ReadAloudButton({ text }: { text: string }) {
 interface RecordProps {
   onTranscript: (text: string) => void;
   disabled?: boolean;
+  /** What the button says before recording. */
+  label?: string;
 }
 
-export function RecordAnswerButton({ onTranscript, disabled }: RecordProps) {
+export function RecordAnswerButton({
+  onTranscript,
+  disabled,
+  label = "Speak answer",
+}: RecordProps) {
   const recorder = useRef<MediaRecorder | null>(null);
   const [state, setState] = useState<"idle" | "recording" | "transcribing">("idle");
   const [error, setError] = useState("");
@@ -81,7 +87,7 @@ export function RecordAnswerButton({ onTranscript, disabled }: RecordProps) {
         onClick={state === "recording" ? () => recorder.current?.stop() : start}
         disabled={disabled || state === "transcribing"}
       >
-        {state === "idle" && "Speak answer"}
+        {state === "idle" && label}
         {state === "recording" && "Stop recording"}
         {state === "transcribing" && "Transcribing…"}
       </button>

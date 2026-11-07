@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   chunkText,
   cosineSimilarity,
+  mentionsNotes,
   parseJsonObject,
   pickSpread,
   verifyQuote,
@@ -67,6 +68,13 @@ test("pickSpread spreads picks across the notes and repeats only when it must", 
   assert.deepEqual(pickSpread(items, 4, 0), [0, 25, 50, 75]);
   assert.deepEqual(pickSpread(["a", "b"], 4, 0), ["a", "a", "b", "b"]);
   assert.deepEqual(pickSpread([], 3), []);
+});
+
+test("mentionsNotes spots requests about the notes in general", () => {
+  assert.equal(mentionsNotes("Summarise my notes please"), true);
+  assert.equal(mentionsNotes("what does this PDF say?"), true);
+  assert.equal(mentionsNotes("What is the capital of Japan?"), false);
+  assert.equal(mentionsNotes("hi"), false);
 });
 
 test("parseJsonObject ignores text around the JSON and survives bad JSON", () => {

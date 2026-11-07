@@ -3,7 +3,7 @@
 Offline revision from messy notes. Import slides, scans and photos, then get quizzed by typing or speaking, with every question linked to its source. All AI runs on the laptop through
 The main premise for this idea is that it is a local model that runs as a webapp. Students will be the primary user for this and is for when there is no wifi/data access, users will be able to use this local ai to chat to qwen3-4b. It should be able to transcribe using voice. It will use RAG so students can safely import their lecture slides and materials so the model is able to securely talk to the student about their notes and for any infomation requested by the user. [QVAC](https://docs.qvac.tether.io/).
 
-> **The backend is finished, but the web app isn't.** Importing, RAG chat, quizzes, marking and voice all run on QVAC with no placeholders. The web app still has its starter design and no chat screen, so chat can only be reached through `api.chat` in `web/src/api.ts` for now.
+> **Everything runs on QVAC, but the design isn't finished.** Chat, importing, quizzes, marking and voice all work with no placeholders. The web app still uses plain starter styles.
 
 ## Get started
 
@@ -33,7 +33,7 @@ From then on, the app doesn't need the internet:
 npm run dev
 ```
 
-Then open <http://127.0.0.1:5173> and upload your notes. You can use `.txt`, `.md`, `.pdf`, `.pptx`, `.png`, `.jpg` and `.webp` files. Export older `.ppt` slides as PDF first.
+Then open <http://127.0.0.1:5173>. The app opens on the chat page, and the Quiz button in the sidebar switches to quizzes. Press Enter to send a message and Shift+Enter for a new line. Attach your notes to ask about them. You can use `.txt`, `.md`, `.pdf`, `.pptx`, `.png`, `.jpg` and `.webp` files. Export older `.ppt` slides as PDF first.
 
 On a laptop with a dedicated graphics card, try `LLM_DEVICE=gpu` when you start the server. The default is the CPU, because it beat integrated graphics in our tests.
 
@@ -48,7 +48,7 @@ Each person mostly works in their own folder, so you shouldn't get many merge co
 | 3 | Interface and design | `web/src/` except `voice/` | `person-3-ui` |
 | 4 | Speech-to-text, text-to-speech, classmate quotes and the presentation | `server/src/voice/`, `web/src/voice/` | `person-4-voice` |
 
-The main work left is Person 3's: the real design and a chat screen. The starting points are `App.tsx` and the files in `web/src/pages/`. To show progress, poll `GET /api/health`, which reports each model's state and what the AI is busy with.
+The main work left is Person 3's: the real design. The starting points are `App.tsx`, the files in `web/src/pages/` and `web/src/styles.css`. The chat logic is in `web/src/chat/`. To show progress, poll `GET /api/health`, which reports each model's state and what the AI is busy with.
 
 ## What we measured
 
@@ -104,7 +104,7 @@ To pick up your teammates' merged work, run `git fetch origin` and then `git mer
 ## How it fits together
 
 ```
-Browser (React, port 5173)
+Browser (React, port 5173, saved chats stay in this browser)
         |
         |  /api
         v

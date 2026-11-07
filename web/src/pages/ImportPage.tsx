@@ -1,43 +1,28 @@
 // PERSON 3: choose notes and start a quiz.
-import { useEffect, useState, type ChangeEvent } from "react";
-import type { Quiz, StudyDocument } from "../../../shared/types";
+import { useState, type ChangeEvent } from "react";
+import type { Quiz } from "../../../shared/types";
 import { api } from "../api";
+import { ACCEPTED_FILES, type Documents } from "../chat/useDocuments";
 
 const QUESTION_COUNT = 5;
 
-export function ImportPage({ onQuizReady }: { onQuizReady: (quiz: Quiz) => void }) {
-  const [documents, setDocuments] = useState<StudyDocument[]>([]);
+interface Props {
+  documents: Documents;
+  onQuizReady: (quiz: Quiz) => void;
+}
+
+export function ImportPage({ documents: notes, onQuizReady }: Props) {
   const [selected, setSelected] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-
-  useEffect(() => {
-    api.listDocuments().then(setDocuments, (e: Error) => setError(e.message));
-  }, []);
-
-  async function run(task: () => Promise<void>) {
-    setBusy(true);
-    setError("");
-    try {
-      await task();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong.");
-    } finally {
-      setBusy(false);
-    }
-  }
+  const working = busy || notes.uploading;
 
   function upload(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);
     event.target.value = "";
-    void run(async () => {
-      for (const file of files) {
-        const document = await api.uploadDocument(file);
-        setDocuments((current) => [...current, document]);
-        if (document.pages.length > 0) {
-          setSelected((current) => [...current, document.id]);
-        }
-      }
+    void notes.upload(files).then((added) => {
+      const readable = added.filter((document) => document.pages.length > 0);
+      setSelected((current) => [...current, ...readable.map((document) => document.id)]);
     });
   }
 
@@ -47,29 +32,39 @@ export function ImportPage({ onQuizReady }: { onQuizReady: (quiz: Quiz) => void 
     );
   }
 
-  function startQuiz() {
-    void run(async () => {
-      const quiz = await api.createQuiz(selected, QUESTION_COUNT);
+  async function startQuiz() {
+    setBusy(true);
+    setError("");
+    try {
+      // Notes removed from the sidebar may still be ticked here.
+      const known = selected.filter((id) => notes.documents.some((d) => d.id === id));
+      const quiz = await api.createQuiz(known, QUESTION_COUNT);
       if (quiz.questions.length === 0) {
         throw new Error("Couldn't write any questions from those notes.");
       }
       onQuizReady(quiz);
-    });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Something went wrong.");
+    } finally {
+      setBusy(false);
+    }
   }
+
+  const canStart = notes.documents.some((d) => selected.includes(d.id));
 
   return (
     <section>
-      <h2>Add your notes</h2>
+      <h2>Make a quiz from your notes</h2>
       <input
         type="file"
         multiple
-        accept=".txt,.md,.pdf,.pptx,.png,.jpg,.jpeg,.webp"
+        accept={ACCEPTED_FILES}
         onChange={upload}
-        disabled={busy}
+        disabled={working}
       />
 
       <ul className="documents">
-        {documents.map((document) => (
+        {notes.documents.map((document) => (
           <li key={document.id}>
             <label>
               <input
@@ -89,9 +84,9 @@ export function ImportPage({ onQuizReady }: { onQuizReady: (quiz: Quiz) => void 
         ))}
       </ul>
 
-      {error && <p className="banner error">{error}</p>}
-      <button onClick={startQuiz} disabled={busy || selected.length === 0}>
-        {busy ? "Working…" : "Start quiz"}
+      {(error || notes.error) && <p className="banner error">{error || notes.error}</p>}
+      <button onClick={startQuiz} disabled={working || !canStart}>
+        {working ? "Working…" : "Start quiz"}
       </button>
     </section>
   );

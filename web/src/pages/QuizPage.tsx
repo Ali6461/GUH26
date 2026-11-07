@@ -104,7 +104,11 @@ export function QuizPage({ quiz, options, onFinished }: Props) {
       )}
 
       {result && (
-        <div className={result.correct ? "result good" : "result bad"}>
+        <div
+          className={result.correct ? "result good" : "result bad"}
+          // The feedback can start below the fold, with the Next button out of sight.
+          ref={(card) => card?.scrollIntoView({ block: "nearest", behavior: "smooth" })}
+        >
           <strong className="verdict">
             <Icon name={result.correct ? "check" : "cross"} />
             {result.correct ? t("correct") : t("notQuite")}

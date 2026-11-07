@@ -1,0 +1,21 @@
+{
+  "name": "guh26",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Offline revision from messy notes, with local AI through QVAC.",
+  "engines": {
+    "node": "^22.21.0 || >=24.9.0"
+  },
+  "workspaces": [
+    "server",
+    "web"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,web -c cyan,magenta \"npm run dev -w server\" \"npm run dev -w web\"",
+    "check": "npm run check -w server && npm run check -w web",
+    "build": "npm run build -w web"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.7"
+  }
+}

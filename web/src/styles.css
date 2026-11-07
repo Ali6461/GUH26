@@ -1,0 +1,90 @@
+/* PERSON 3: plain starter styles. Replace them with the real design.
+   Keep fonts and images in this repo so the app works offline. */
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, sans-serif;
+  line-height: 1.5;
+}
+
+body {
+  margin: 0;
+}
+
+.app {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+
+button {
+  padding: 8px 16px;
+  font: inherit;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+textarea {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 12px 0;
+  padding: 8px;
+  font: inherit;
+}
+
+blockquote {
+  margin: 12px 0;
+  padding-left: 12px;
+  border-left: 3px solid currentColor;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.documents {
+  padding: 0;
+  list-style: none;
+}
+
+.documents li {
+  margin: 12px 0;
+}
+
+.muted {
+  opacity: 0.7;
+}
+
+.warning {
+  color: #b45309;
+}
+
+.banner {
+  padding: 8px 12px;
+  border: 1px solid #b45309;
+  border-radius: 6px;
+}
+
+.banner.error {
+  border-color: #dc2626;
+}
+
+.result {
+  margin-top: 16px;
+  padding: 12px 16px;
+  border: 2px solid;
+  border-radius: 6px;
+}
+
+.result.good {
+  border-color: #16a34a;
+}
+
+.result.bad {
+  border-color: #dc2626;
+}

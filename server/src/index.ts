@@ -5,13 +5,17 @@ import multer from "multer";
 import type {
   AnswerRequest,
   ApiError,
+  ChatEvent,
+  ChatRequest,
   CreateQuizRequest,
   Health,
   Quiz,
   SpeakRequest,
   TranscribeResponse,
 } from "../../shared/types";
-import { AI_IS_PLACEHOLDER, generateQuestions, markAnswer } from "./ai/index";
+import { AI_IS_PLACEHOLDER, chat, generateQuestions, markAnswer } from "./ai/index";
+import { currentActivity, modelStatuses, setActivity, warmUp } from "./ai/models";
+import { ensureIndexed, removeFromIndex } from "./ai/rag";
 import { IMPORT_IS_PLACEHOLDER, importFile } from "./import/index";
 import { store } from "./store";
 import { speak, transcribe, VOICE_IS_PLACEHOLDER } from "./voice/index";
@@ -20,6 +24,13 @@ import { speak, transcribe, VOICE_IS_PLACEHOLDER } from "./voice/index";
 const HOST = "127.0.0.1";
 const PORT = 3001;
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+const WEB_PORT = 5173;
+const DEFAULT_QUESTIONS = 5;
+const MAX_QUESTIONS = 20;
+const LOCAL_HOSTS = ["127.0.0.1", "localhost"].flatMap((host) => [
+  `${host}:${PORT}`,
+  `${host}:${WEB_PORT}`,
+]);
 
 class BadRequest extends Error {}
 
@@ -29,7 +40,22 @@ const upload = multer({
   limits: { fileSize: MAX_UPLOAD_BYTES },
 });
 
-app.use(express.json());
+// Listening on 127.0.0.1 doesn't stop a website open in the student's browser from
+// calling this server, so only accept requests that come from this app.
+app.use((req, res, next) => {
+  const origin = req.get("origin");
+  const allowed =
+    LOCAL_HOSTS.includes(req.get("host") ?? "") &&
+    (!origin || LOCAL_HOSTS.some((host) => origin === `http://${host}`));
+  if (allowed) {
+    next();
+    return;
+  }
+  const body: ApiError = { error: "Requests from other sites aren't allowed." };
+  res.status(403).json(body);
+});
+
+app.use(express.json({ limit: "2mb" }));
 
 app.get("/api/health", (_req, res) => {
   const health: Health = {
@@ -39,6 +65,8 @@ app.get("/api/health", (_req, res) => {
       import: IMPORT_IS_PLACEHOLDER,
       voice: VOICE_IS_PLACEHOLDER,
     },
+    models: modelStatuses(),
+    activity: currentActivity(),
   };
   res.json(health);
 });
@@ -49,14 +77,53 @@ app.get("/api/documents", (_req, res) => {
 
 app.post("/api/documents", upload.single("file"), async (req, res) => {
   if (!req.file) throw new BadRequest("No file was uploaded.");
-  const document = await importFile({
-    // multer decodes file names as latin1, so restore UTF-8 names.
-    name: Buffer.from(req.file.originalname, "latin1").toString("utf8"),
-    mimeType: req.file.mimetype,
-    bytes: req.file.buffer,
-  });
+  // multer decodes file names as latin1, so restore UTF-8 names.
+  const name = Buffer.from(req.file.originalname, "latin1").toString("utf8");
+  setActivity(`Reading ${name}`);
+  let document;
+  try {
+    document = await importFile({ name, mimeType: req.file.mimetype, bytes: req.file.buffer });
+  } finally {
+    setActivity(null);
+  }
   store.addDocument(document);
+  // The text is safe even if indexing fails. Chat tries again on the next question.
+  await ensureIndexed([document]).catch((error) => console.error(error));
   res.status(201).json(document);
+});
+
+app.delete("/api/documents/:id", (req, res) => {
+  store.removeDocument(req.params.id);
+  removeFromIndex(req.params.id);
+  res.status(204).end();
+});
+
+app.post("/api/chat", async (req, res) => {
+  const { messages } = req.body as ChatRequest;
+  const valid =
+    Array.isArray(messages) &&
+    messages.length > 0 &&
+    messages.every(
+      (m) => (m?.role === "user" || m?.role === "assistant") && typeof m.content === "string",
+    ) &&
+    messages[messages.length - 1].role === "user" &&
+    messages[messages.length - 1].content.trim() !== "";
+  if (!valid) throw new BadRequest("Ask a question first.");
+
+  res.type("application/x-ndjson");
+  res.flushHeaders();
+  const send = (event: ChatEvent) => res.write(`${JSON.stringify(event)}\n`);
+  const stopped = new AbortController();
+  res.on("close", () => stopped.abort());
+  try {
+    await ensureIndexed(store.listDocuments());
+    await chat(messages, send, stopped.signal);
+    send({ type: "done" });
+  } catch (error) {
+    console.error(error);
+    send({ type: "error", error: error instanceof Error ? error.message : "Something went wrong." });
+  }
+  res.end();
 });
 
 app.post("/api/quizzes", async (req, res) => {
@@ -72,7 +139,10 @@ app.post("/api/quizzes", async (req, res) => {
   const quiz: Quiz = {
     id: randomUUID(),
     documentIds,
-    questions: await generateQuestions(documents, count || 5),
+    questions: await generateQuestions(
+      documents,
+      Math.min(Number(count) || DEFAULT_QUESTIONS, MAX_QUESTIONS),
+    ),
     createdAt: new Date().toISOString(),
   };
   store.addQuiz(quiz);
@@ -104,9 +174,7 @@ app.post("/api/voice/speak", async (req, res) => {
   if (typeof text !== "string" || !text.trim()) throw new BadRequest("Text is empty.");
   const audio = await speak(text);
   if (!audio) {
-    const body: ApiError = { error: "Text-to-speech isn't connected yet." };
-    res.status(501).json(body);
-    return;
+    throw new BadRequest("There's nothing to read aloud in that text.");
   }
   res.type(audio.mimeType).send(audio.bytes);
 });
@@ -126,4 +194,5 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
 
 app.listen(PORT, HOST, () => {
   console.log(`Server running at http://${HOST}:${PORT}`);
+  void warmUp().catch((error) => console.error(error));
 });

@@ -9,10 +9,8 @@ interface Data {
   quizzes: Quiz[];
 }
 
-const DATA_FILE = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  "../../data/store.json",
-);
+export const DATA_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "../../data");
+const DATA_FILE = resolve(DATA_DIR, "store.json");
 
 function load(): Data {
   try {
@@ -26,7 +24,7 @@ function load(): Data {
 const data = load();
 
 function save(): void {
-  mkdirSync(dirname(DATA_FILE), { recursive: true });
+  mkdirSync(DATA_DIR, { recursive: true });
   writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
 }
 
@@ -35,6 +33,12 @@ export const store = {
   getDocument: (id: string) => data.documents.find((d) => d.id === id),
   addDocument(document: StudyDocument) {
     data.documents.push(document);
+    save();
+  },
+  /** Also removes quizzes built from it, because they quote the notes. */
+  removeDocument(id: string) {
+    data.documents = data.documents.filter((d) => d.id !== id);
+    data.quizzes = data.quizzes.filter((q) => !q.documentIds.includes(id));
     save();
   },
   getQuiz: (id: string) => data.quizzes.find((q) => q.id === id),

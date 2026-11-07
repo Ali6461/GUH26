@@ -1,6 +1,8 @@
 // All server calls go through here.
 import type {
   ApiError,
+  ChatEvent,
+  ChatMessage,
   Health,
   MarkResult,
   Quiz,
@@ -35,6 +37,39 @@ export const api = {
     );
   },
 
+  async deleteDocument(id: string) {
+    const response = await fetch(`/api/documents/${id}`, { method: "DELETE" });
+    if (!response.ok) await parse<never>(response);
+  },
+
+  /** Streams an answer from the notes. Abort the signal to stop the reply early. */
+  async chat(
+    messages: ChatMessage[],
+    onEvent: (event: ChatEvent) => void,
+    signal?: AbortSignal,
+  ) {
+    const response = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages }),
+      signal,
+    });
+    if (!response.ok || !response.body) await parse<never>(response);
+
+    const reader = response.body!.pipeThrough(new TextDecoderStream()).getReader();
+    let buffer = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) return;
+      buffer += value;
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const line of lines) {
+        if (line) onEvent(JSON.parse(line) as ChatEvent);
+      }
+    }
+  },
+
   createQuiz: (documentIds: string[], count: number) =>
     postJson<Quiz>("/api/quizzes", { documentIds, count }),
 
@@ -43,7 +78,7 @@ export const api = {
 
   async transcribe(audio: Blob) {
     const form = new FormData();
-    form.append("audio", audio, "answer.webm");
+    form.append("audio", audio, "answer.wav");
     const response = await fetch("/api/voice/transcribe", { method: "POST", body: form });
     return (await parse<TranscribeResponse>(response)).text;
   },

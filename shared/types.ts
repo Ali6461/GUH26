@@ -51,6 +51,26 @@ export interface MarkResult {
   source: SourceRef;
 }
 
+export type ModelState =
+  | "missing" // Not on this laptop yet.
+  | "downloaded" // On disk, not in memory.
+  | "downloading"
+  | "loading"
+  | "ready"
+  | "error";
+
+export interface ModelStatus {
+  key: string;
+  label: string;
+  /** What this model does for the student. */
+  purpose: string;
+  sizeMB: number;
+  state: ModelState;
+  /** Download progress from 0 to 100, while downloading. */
+  progress?: number;
+  error?: string;
+}
+
 /** Which parts are still placeholders. The web app shows this as a banner. */
 export interface Health {
   ok: true;
@@ -59,6 +79,9 @@ export interface Health {
     import: boolean;
     voice: boolean;
   };
+  models: ModelStatus[];
+  /** What the AI is busy with, such as "Writing question 2 of 5". */
+  activity: string | null;
 }
 
 export interface CreateQuizRequest {
@@ -69,6 +92,23 @@ export interface CreateQuizRequest {
 export interface AnswerRequest {
   answer: string;
 }
+
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface ChatRequest {
+  messages: ChatMessage[];
+}
+
+/** POST /api/chat streams these as one JSON object per line. */
+export type ChatEvent =
+  /** Passages found in the notes. An answer cites them as [1], [2] and so on. */
+  | { type: "sources"; sources: SourceRef[] }
+  | { type: "delta"; text: string }
+  | { type: "done" }
+  | { type: "error"; error: string };
 
 export interface TranscribeResponse {
   text: string;

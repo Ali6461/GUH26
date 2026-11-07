@@ -3,6 +3,7 @@
 // because they may not work offline.
 import { useRef, useState } from "react";
 import { api } from "../api";
+import { toWav } from "./wav";
 
 export function ReadAloudButton({ text }: { text: string }) {
   const [busy, setBusy] = useState(false);
@@ -54,7 +55,10 @@ export function RecordAnswerButton({ onTranscript, disabled }: RecordProps) {
         stream.getTracks().forEach((track) => track.stop());
         setState("transcribing");
         try {
-          onTranscript(await api.transcribe(new Blob(chunks, { type: next.mimeType })));
+          const wav = await toWav(new Blob(chunks, { type: next.mimeType }));
+          const text = await api.transcribe(wav);
+          if (text) onTranscript(text);
+          else setError("Didn't catch that. Please try again.");
         } catch (e) {
           setError(e instanceof Error ? e.message : "Couldn't understand that.");
         } finally {

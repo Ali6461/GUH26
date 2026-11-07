@@ -1,12 +1,13 @@
 # GUH26
 
-Offline revision from messy notes. Import slides, scans and photos, then get quizzed by typing or speaking, with every question linked to its source. All AI runs on the laptop through [QVAC](https://docs.qvac.tether.io/).
+Offline revision from messy notes. Import slides, scans and photos, then get quizzed by typing or speaking, with every question linked to its source. All AI runs on the laptop through
+The main premise for this idea is that it is a local model that runs as a webapp. Students will be the primary user for this and is for when there is no wifi/data access, users will be able to use this local ai to chat to qwen3-4b. It should be able to transcribe using voice. It will use RAG so students can safely import their lecture slides and materials so the model is able to securely talk to the student about their notes and for any infomation requested by the user. [QVAC](https://docs.qvac.tether.io/).
 
-> **This is a skeleton.** The app runs from start to finish, but the AI, PDF, slide, image and voice parts are placeholders. A banner in the app lists what's still fake. Connect these parts before claiming they work in the demo.
+> **The backend is finished, but the web app isn't.** Importing, RAG chat, quizzes, marking and voice all run on QVAC with no placeholders. The web app still has its starter design and no chat screen, so chat can only be reached through `api.chat` in `web/src/api.ts` for now.
 
 ## Get started
 
-You need [Node](https://nodejs.org/) `^22.21.0` or `>=24.9.0`. QVAC on Windows also needs Vulkan 1.4 or newer.
+You need [Node](https://nodejs.org/) `^22.21.0` or `>=24.9.0`, and about 3 GB of free disk space for the models. QVAC's docs also ask for Vulkan 1.4 or newer on Windows, though we ran it on a Vulkan 1.3 driver without problems. You don't need ffmpeg.
 
 ```bash
 git clone https://github.com/Ali6461/GUH26.git
@@ -20,11 +21,21 @@ cd GUH26
 npm install
 ```
 
+Download the models once while you're online. They're saved in `~/.qvac`, outside this repo:
+
+```bash
+npm run models
+```
+
+From then on, the app doesn't need the internet:
+
 ```bash
 npm run dev
 ```
 
-Then open <http://127.0.0.1:5173>. To try it now, upload a `.txt` or `.md` file with a few full sentences.
+Then open <http://127.0.0.1:5173> and upload your notes. You can use `.txt`, `.md`, `.pdf`, `.pptx`, `.png`, `.jpg` and `.webp` files. Export older `.ppt` slides as PDF first.
+
+On a laptop with a dedicated graphics card, try `LLM_DEVICE=gpu` when you start the server. The default is the CPU, because it beat integrated graphics in our tests.
 
 ## Who owns what
 
@@ -37,15 +48,19 @@ Each person mostly works in their own folder, so you shouldn't get many merge co
 | 3 | Interface and design | `web/src/` except `voice/` | `person-3-ui` |
 | 4 | Speech-to-text, text-to-speech, classmate quotes and the presentation | `server/src/voice/`, `web/src/voice/` | `person-4-voice` |
 
-The to-do list for each server role is at the top of its `index.ts`. Person 3's starting points are `App.tsx` and the files in `web/src/pages/`.
+The main work left is Person 3's: the real design and a chat screen. The starting points are `App.tsx` and the files in `web/src/pages/`. To show progress, poll `GET /api/health`, which reports each model's state and what the AI is busy with.
 
-## Test these first
+## What we measured
 
-These could change the plan, so find out early and tell the team:
+All of this ran on one laptop: Intel i5-12450H, 16 GB of RAM and integrated graphics. Run it again on the demo laptop, because the speed will differ.
 
-1. **Person 1:** does QVAC run the Qwen3 4B model on the demo laptop, and how fast?
-2. **Person 2:** can OCR read real scans and photos of handwriting?
-3. **Person 4:** can speech and the 4B model run together without running out of memory or feeling too slow?
+| Question | Answer |
+|---|---|
+| Does Qwen3 4B run, and how fast? | Yes. It writes about 12 tokens a second on the CPU and 7 on integrated graphics. Chat starts answering in about 5 seconds. |
+| How long do quizzes take? | About 10 seconds per question, so 5 questions take about a minute. Marking an answer takes about 7 seconds. |
+| Can OCR read scans and photos? | Clean print, yes, in about 2 seconds a page. Handwriting only partly: a sideways photo of neat capitals came out as a mix of correct phrases and garbage, in about 13 seconds. The app warns about pages like this. Don't promise handwriting in the demo. |
+| Can speech and the 4B model run together? | Yes. All five models took about 6.3 GB of RAM together, and speech stayed quick: about 1 second to transcribe or to read aloud. |
+| Does it stay offline? | Across 96 samples while models loaded and answered, the server and QVAC held no connections beyond this laptop. Do a full test with Wi-Fi off before the demo. |
 
 ## Working together
 
@@ -94,20 +109,22 @@ Browser (React, port 5173)
         |  /api
         v
 Local Node server (port 3001)
-   |-- import/   files to text
-   |-- ai/       questions and marking
+   |-- import/   files to text, with OCR for scans and photos
+   |-- ai/       models, RAG search, chat, questions and marking
    |-- voice/    speech to text, text to speech
-   `-- store.ts  saves to data/store.json
+   `-- store.ts  saves to data/store.json (RAG vectors go in data/vectors.json)
 ```
 
 | Route | What it does |
 |---|---|
-| `GET /api/health` | Shows which parts are still placeholders |
+| `GET /api/health` | Shows each model's state and what the AI is busy with |
 | `GET /api/documents` | Lists imported notes |
-| `POST /api/documents` | Imports the uploaded `file` |
+| `POST /api/documents` | Imports the uploaded `file` and adds it to RAG search |
+| `DELETE /api/documents/:id` | Deletes notes, their search data and any quizzes built from them |
+| `POST /api/chat` | Answers `{ messages }` from the notes, streaming one JSON event per line |
 | `POST /api/quizzes` | Creates a quiz from `{ documentIds, count }` |
 | `POST /api/quizzes/:quizId/questions/:questionId/answer` | Marks `{ answer }` |
-| `POST /api/voice/transcribe` | Turns the uploaded `audio` into text |
+| `POST /api/voice/transcribe` | Turns the uploaded `audio` into text. It must be WAV, which `VoiceControls` handles in the browser |
 | `POST /api/voice/speak` | Turns `{ text }` into audio |
 
 The data types for these routes are in `shared/types.ts`.

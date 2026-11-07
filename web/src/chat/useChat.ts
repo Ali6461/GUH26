@@ -1,6 +1,7 @@
 // All the chat state. It lives above the pages, so a reply keeps streaming while
 // the student looks at another chat or the quiz.
 import { useEffect, useRef, useState } from "react";
+import type { Language } from "../../../shared/types";
 import { api } from "../api";
 import {
   loadConversations,
@@ -18,7 +19,7 @@ export interface Generating {
   phase: ReplyPhase;
 }
 
-export function useChat() {
+export function useChat(language: Language) {
   const [conversations, setConversations] = useState<Conversation[]>(loadConversations);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [generating, setGenerating] = useState<Generating | null>(null);
@@ -102,6 +103,7 @@ export function useChat() {
           }
         },
         controller.signal,
+        language,
       );
       if (!finished) {
         patchMessage(conversationId, replyId, (m) => ({

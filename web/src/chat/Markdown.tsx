@@ -4,6 +4,7 @@
 import katex from "katex";
 import "katex/dist/katex.min.css";
 import type { ReactNode } from "react";
+import { useLanguage, type Translate } from "../i18n";
 
 interface Props {
   text: string;
@@ -29,10 +30,11 @@ function Maths({ tex, display }: { tex: string; display: boolean }) {
 function renderInline(
   text: string,
   { sourceCount, onCite }: Pick<Props, "sourceCount" | "onCite">,
+  t: Translate,
 ): ReactNode[] {
   return text.split(INLINE).map((part, i) => {
     if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
-      return <strong key={i}>{renderInline(part.slice(2, -2), { sourceCount, onCite })}</strong>;
+      return <strong key={i}>{renderInline(part.slice(2, -2), { sourceCount, onCite }, t)}</strong>;
     }
     if (part.startsWith("$") && part.endsWith("$") && part.length > 2) {
       return <Maths key={i} tex={part.slice(1, -1)} display={false} />;
@@ -54,7 +56,7 @@ function renderInline(
           key={i}
           type="button"
           className="citation"
-          aria-label={`Show source ${source}`}
+          aria-label={t("showSource", { n: source })}
           onClick={() => onCite(source)}
         >
           [{source}]
@@ -78,6 +80,7 @@ function mathsBlockEnd(line: string): string | null {
 }
 
 export function Markdown(props: Props) {
+  const { t } = useLanguage();
   const lines = props.text.split("\n");
   const blocks: ReactNode[] = [];
 
@@ -119,14 +122,14 @@ export function Markdown(props: Props) {
       while (i < lines.length && pattern.test(lines[i])) {
         items.push(lines[i++].replace(pattern, ""));
       }
-      const children = items.map((item, n) => <li key={n}>{renderInline(item, props)}</li>);
+      const children = items.map((item, n) => <li key={n}>{renderInline(item, props, t)}</li>);
       blocks.push(
         pattern === BULLET ? <ul key={key}>{children}</ul> : <ol key={key}>{children}</ol>,
       );
     } else if (/^#{1,6}\s+/.test(line)) {
       blocks.push(
         <p key={key}>
-          <strong>{renderInline(line.replace(/^#+\s+/, ""), props)}</strong>
+          <strong>{renderInline(line.replace(/^#+\s+/, ""), props, t)}</strong>
         </p>,
       );
       i++;
@@ -145,7 +148,7 @@ export function Markdown(props: Props) {
       ) {
         paragraph.push(lines[i++]);
       }
-      blocks.push(<p key={key}>{renderInline(paragraph.join(" "), props)}</p>);
+      blocks.push(<p key={key}>{renderInline(paragraph.join(" "), props, t)}</p>);
     }
   }
   return <>{blocks}</>;

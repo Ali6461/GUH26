@@ -1,10 +1,11 @@
 // PERSON 3: chat is the default page, and the sidebar switches to the quiz.
 // The quiz flow is import, then quiz, then results.
 import { useEffect, useState } from "react";
-import type { Health, MarkResult, Quiz } from "../../shared/types";
+import type { Health, Language, MarkResult, Quiz } from "../../shared/types";
 import { api } from "./api";
 import { useChat } from "./chat/useChat";
 import { useDocuments } from "./chat/useDocuments";
+import { LANGUAGE_OPTIONS, LanguageProvider, useLanguage, type Translate } from "./i18n";
 import { ChatPage } from "./pages/ChatPage";
 import { DEFAULT_QUIZ_OPTIONS, ImportPage } from "./pages/ImportPage";
 import { QuizPage } from "./pages/QuizPage";
@@ -20,24 +21,42 @@ type Screen =
 const HEALTH_POLL_MS = 2500;
 
 /** What the banner should say about the chat model and the current job, if anything. */
-function statusText(health: Health | null): string {
+function statusText(health: Health | null, t: Translate): string {
   if (!health) return "";
   const llm = health.models.find((model) => model.key === "llm");
   if (llm?.state === "downloading") {
-    return `Downloading ${llm.label}: ${Math.floor(llm.progress ?? 0)}%`;
+    return t("downloading", { label: llm.label, progress: Math.floor(llm.progress ?? 0) });
   }
-  if (llm?.state === "loading") return `Loading ${llm.label}…`;
-  return health.activity ?? "";
+  if (llm?.state === "loading") return t("loading", { label: llm.label });
+
+  // The server describes its work in English, so translate the sentences it uses.
+  const activity = health.activity ?? "";
+  const writing = activity.match(/^Writing question (\d+) of (\d+)$/);
+  if (writing) return t("activityWriting", { n: writing[1], total: writing[2] });
+  const reading = activity.match(/^Reading (.+)$/);
+  if (reading) return t("activityReading", { name: reading[1] });
+  const indexing = activity.match(/^Indexing (.+) \(/);
+  if (indexing) return t("activityIndexing", { name: indexing[1] });
+  return activity;
 }
 
 export function App() {
+  return (
+    <LanguageProvider>
+      <AppContent />
+    </LanguageProvider>
+  );
+}
+
+function AppContent() {
+  const { language, setLanguage, t } = useLanguage();
   const [view, setView] = useState<View>("chat");
   const [screen, setScreen] = useState<Screen>({ name: "import" });
   // Kept here so the settings are still there after "Revise again".
   const [quizOptions, setQuizOptions] = useState(DEFAULT_QUIZ_OPTIONS);
   const [health, setHealth] = useState<Health | null>(null);
   const [serverDown, setServerDown] = useState(false);
-  const chat = useChat();
+  const chat = useChat(language);
   const documents = useDocuments();
   const { reload } = documents;
 
@@ -65,7 +84,7 @@ export function App() {
         .filter(([, isPlaceholder]) => isPlaceholder)
         .map(([part]) => part)
     : [];
-  const status = statusText(health);
+  const status = statusText(health, t);
   const modelErrors = (health?.models ?? []).flatMap((model) => model.error ?? []);
 
   function openChat(open: () => void) {
@@ -74,26 +93,25 @@ export function App() {
   }
 
   function removeChat(id: string, title: string) {
-    if (window.confirm(`Delete the chat "${title}"?`)) chat.remove(id);
+    if (window.confirm(t("deleteChatConfirm", { title }))) chat.remove(id);
   }
 
   function removeNotes(id: string, name: string) {
-    const message = `Remove ${name} from the app? Chat will stop using it and its quizzes will be deleted. Your original file isn't touched.`;
-    if (window.confirm(message)) void documents.remove(id);
+    if (window.confirm(t("removeNotesConfirm", { name }))) void documents.remove(id);
   }
 
   return (
     <div className="layout">
       <aside className="sidebar">
-        <h1>GUH26 Revision</h1>
-        <nav className="row" aria-label="Mode">
+        <h1>{t("appTitle")}</h1>
+        <nav className="row" aria-label={t("mode")}>
           <button
             type="button"
             className={view === "chat" ? "" : "secondary"}
             aria-current={view === "chat" ? "page" : undefined}
             onClick={() => setView("chat")}
           >
-            Chat
+            {t("modeChat")}
           </button>
           <button
             type="button"
@@ -101,16 +119,16 @@ export function App() {
             aria-current={view === "quiz" ? "page" : undefined}
             onClick={() => setView("quiz")}
           >
-            Quiz
+            {t("modeQuiz")}
           </button>
         </nav>
 
         <button type="button" className="secondary" onClick={() => openChat(chat.startNew)}>
-          New chat
+          {t("newChat")}
         </button>
 
-        <h2>Chats</h2>
-        {chat.conversations.length === 0 && <p className="muted">No chats yet.</p>}
+        <h2>{t("chats")}</h2>
+        {chat.conversations.length === 0 && <p className="muted">{t("noChats")}</p>}
         <ul className="sidebar-list">
           {chat.conversations.map((conversation) => (
             <li key={conversation.id}>
@@ -127,7 +145,7 @@ export function App() {
               <button
                 type="button"
                 className="sidebar-remove"
-                aria-label={`Delete chat ${conversation.title}`}
+                aria-label={t("deleteChatLabel", { title: conversation.title })}
                 onClick={() => removeChat(conversation.id, conversation.title)}
               >
                 ×
@@ -136,21 +154,21 @@ export function App() {
           ))}
         </ul>
 
-        <h2>Your notes</h2>
+        <h2>{t("yourNotes")}</h2>
         {documents.documents.length === 0 && (
-          <p className="muted">Attach notes to ask about them.</p>
+          <p className="muted">{t("attachHint")}</p>
         )}
         <ul className="sidebar-list">
           {documents.documents.map((document) => (
             <li key={document.id}>
               <span className="sidebar-item" title={document.warnings.join(" ")}>
                 {document.name}
-                {document.warnings.length > 0 && " (check)"}
+                {document.warnings.length > 0 && ` ${t("notesCheck")}`}
               </span>
               <button
                 type="button"
                 className="sidebar-remove"
-                aria-label={`Remove notes ${document.name}`}
+                aria-label={t("removeNotesLabel", { name: document.name })}
                 onClick={() => removeNotes(document.id, document.name)}
               >
                 ×
@@ -158,14 +176,29 @@ export function App() {
             </li>
           ))}
         </ul>
+
+        <h2>{t("accessibility")}</h2>
+        <label className="language-menu">
+          {t("language")}{" "}
+          <select
+            value={language}
+            onChange={(event) => setLanguage(event.target.value as Language)}
+          >
+            {LANGUAGE_OPTIONS.map(({ code, label }) => (
+              <option key={label} value={code ?? label} disabled={!code}>
+                {code ? label : `${label} (${t("comingSoon")})`}
+              </option>
+            ))}
+          </select>
+        </label>
       </aside>
 
       <main className="main">
         {serverDown && (
-          <p className="banner error">Can't reach the local server. Is it running?</p>
+          <p className="banner error">{t("serverDown")}</p>
         )}
         {placeholders.length > 0 && (
-          <p className="banner">Still placeholders: {placeholders.join(", ")}</p>
+          <p className="banner">{t("placeholders", { parts: placeholders.join(", ") })}</p>
         )}
         {modelErrors.map((error) => (
           <p className="banner error" key={error}>

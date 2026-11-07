@@ -1,14 +1,15 @@
 // PERSON 3: choose notes and start a quiz.
 import { useState, type ChangeEvent } from "react";
-import type { Difficulty, Quiz } from "../../../shared/types";
+import type { Difficulty, Language, Quiz } from "../../../shared/types";
 import { api } from "../api";
 import { ACCEPTED_FILES, type Documents } from "../chat/useDocuments";
+import { useLanguage, type MessageKey, type Translate } from "../i18n";
 
 const QUESTION_COUNTS = [3, 5, 10, 15];
-const DIFFICULTIES: { value: Difficulty; label: string }[] = [
-  { value: "easy", label: "Easy: facts and definitions" },
-  { value: "medium", label: "Medium: explain the ideas" },
-  { value: "hard", label: "Hard: reason it through" },
+const DIFFICULTIES: { value: Difficulty; label: MessageKey }[] = [
+  { value: "easy", label: "difficultyEasy" },
+  { value: "medium", label: "difficultyMedium" },
+  { value: "hard", label: "difficultyHard" },
 ];
 /** Measured on 171 pages of real notes with a laptop CPU. Medium is an estimate. */
 const SECONDS_PER_QUESTION: Record<Difficulty, number> = { easy: 15, medium: 15, hard: 25 };
@@ -20,11 +21,12 @@ export interface QuizOptions {
 
 export const DEFAULT_QUIZ_OPTIONS: QuizOptions = { count: 5, difficulty: "medium" };
 
-function timeEstimate({ count, difficulty }: QuizOptions): string {
-  const seconds = count * SECONDS_PER_QUESTION[difficulty];
-  if (seconds < 60) return `about ${seconds} seconds`;
+function timeEstimate({ count, difficulty }: QuizOptions, language: Language, t: Translate): string {
+  // Each question also has to be translated.
+  const seconds = count * SECONDS_PER_QUESTION[difficulty] * (language === "en" ? 1 : 2);
+  if (seconds < 60) return t("aboutSeconds", { n: seconds });
   const minutes = Math.round(seconds / 60);
-  return minutes === 1 ? "about a minute" : `about ${minutes} minutes`;
+  return minutes === 1 ? t("aboutMinute") : t("aboutMinutes", { n: minutes });
 }
 
 interface Props {
@@ -35,6 +37,7 @@ interface Props {
 }
 
 export function ImportPage({ documents: notes, options, onOptionsChange, onQuizReady }: Props) {
+  const { language, t } = useLanguage();
   const [selected, setSelected] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -61,13 +64,13 @@ export function ImportPage({ documents: notes, options, onOptionsChange, onQuizR
     try {
       // Notes removed from the sidebar may still be ticked here.
       const known = selected.filter((id) => notes.documents.some((d) => d.id === id));
-      const quiz = await api.createQuiz(known, options.count, options.difficulty);
+      const quiz = await api.createQuiz(known, options.count, options.difficulty, language);
       if (quiz.questions.length === 0) {
-        throw new Error("Couldn't write any questions from those notes.");
+        throw new Error(t("noQuestions"));
       }
       onQuizReady(quiz);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong.");
+      setError(e instanceof Error ? e.message : t("somethingWrong"));
     } finally {
       setBusy(false);
     }
@@ -77,7 +80,7 @@ export function ImportPage({ documents: notes, options, onOptionsChange, onQuizR
 
   return (
     <section>
-      <h2>Make a quiz from your notes</h2>
+      <h2>{t("makeQuiz")}</h2>
       <input
         type="file"
         multiple
@@ -109,7 +112,7 @@ export function ImportPage({ documents: notes, options, onOptionsChange, onQuizR
 
       <div className="row quiz-options">
         <label>
-          Questions{" "}
+          {t("questions")}{" "}
           <select
             value={options.count}
             disabled={working}
@@ -125,7 +128,7 @@ export function ImportPage({ documents: notes, options, onOptionsChange, onQuizR
           </select>
         </label>
         <label>
-          Difficulty{" "}
+          {t("difficulty")}{" "}
           <select
             value={options.difficulty}
             disabled={working}
@@ -135,18 +138,19 @@ export function ImportPage({ documents: notes, options, onOptionsChange, onQuizR
           >
             {DIFFICULTIES.map(({ value, label }) => (
               <option key={value} value={value}>
-                {label}
+                {t(label)}
               </option>
             ))}
           </select>
         </label>
       </div>
 
+      {t("aiLanguageWarning") && <p className="warning">{t("aiLanguageWarning")}</p>}
       {(error || notes.error) && <p className="banner error">{error || notes.error}</p>}
       <button onClick={startQuiz} disabled={working || !canStart}>
-        {working ? "Working…" : "Start quiz"}
+        {working ? t("working") : t("startQuiz")}
       </button>
-      <p className="muted">Writing the questions takes {timeEstimate(options)}.</p>
+      <p className="muted">{t("writingTime", { time: timeEstimate(options, language, t) })}</p>
     </section>
   );
 }

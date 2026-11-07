@@ -86,15 +86,22 @@ export interface Health {
 
 export type Difficulty = "easy" | "medium" | "hard";
 
+/** The language the student reads, and the AI writes, in. */
+export type Language = "en" | "uz";
+
 export interface CreateQuizRequest {
   documentIds: string[];
   count: number;
   /** Defaults to medium. */
   difficulty?: Difficulty;
+  /** Defaults to English. */
+  language?: Language;
 }
 
 export interface AnswerRequest {
   answer: string;
+  /** Defaults to English. */
+  language?: Language;
 }
 
 export interface ChatMessage {
@@ -104,6 +111,8 @@ export interface ChatMessage {
 
 export interface ChatRequest {
   messages: ChatMessage[];
+  /** Defaults to English. */
+  language?: Language;
 }
 
 /** POST /api/chat streams these as one JSON object per line. */

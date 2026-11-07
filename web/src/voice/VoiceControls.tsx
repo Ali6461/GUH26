@@ -3,9 +3,12 @@
 // because they may not work offline.
 import { useRef, useState } from "react";
 import { api } from "../api";
+import { useLanguage } from "../i18n";
 import { toWav } from "./wav";
 
+// The speech models on this laptop only handle English, so voice is hidden in other languages.
 export function ReadAloudButton({ text }: { text: string }) {
+  const { language } = useLanguage();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -23,6 +26,8 @@ export function ReadAloudButton({ text }: { text: string }) {
       setBusy(false);
     }
   }
+
+  if (language !== "en") return null;
 
   return (
     <div className="row">
@@ -46,6 +51,7 @@ export function RecordAnswerButton({
   disabled,
   label = "Speak answer",
 }: RecordProps) {
+  const { language } = useLanguage();
   const recorder = useRef<MediaRecorder | null>(null);
   const [state, setState] = useState<"idle" | "recording" | "transcribing">("idle");
   const [error, setError] = useState("");
@@ -78,6 +84,8 @@ export function RecordAnswerButton({
       setError("Couldn't access the microphone.");
     }
   }
+
+  if (language !== "en") return null;
 
   return (
     <>

@@ -1,7 +1,8 @@
 // PERSON 3: one question at a time, answered by typing or speaking.
 import { useState, type FormEvent } from "react";
-import type { MarkResult, Quiz } from "../../../shared/types";
+import type { Difficulty, MarkResult, Quiz } from "../../../shared/types";
 import { api } from "../api";
+import { useLanguage, type MessageKey } from "../i18n";
 import type { QuizOptions } from "./ImportPage";
 import { ReadAloudButton, RecordAnswerButton } from "../voice/VoiceControls";
 
@@ -11,7 +12,14 @@ interface Props {
   onFinished: (results: MarkResult[]) => void;
 }
 
+const LEVELS: Record<Difficulty, MessageKey> = {
+  easy: "levelEasy",
+  medium: "levelMedium",
+  hard: "levelHard",
+};
+
 export function QuizPage({ quiz, options, onFinished }: Props) {
+  const { language, t } = useLanguage();
   const [index, setIndex] = useState(0);
   const [answer, setAnswer] = useState("");
   const [result, setResult] = useState<MarkResult | null>(null);
@@ -28,11 +36,11 @@ export function QuizPage({ quiz, options, onFinished }: Props) {
     setBusy(true);
     setError("");
     try {
-      const marked = await api.answer(quiz.id, question.id, answer);
+      const marked = await api.answer(quiz.id, question.id, answer, language);
       setResult(marked);
       setResults((current) => [...current, marked]);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't mark that answer.");
+      setError(e instanceof Error ? e.message : t("markError"));
     } finally {
       setBusy(false);
     }
@@ -51,12 +59,15 @@ export function QuizPage({ quiz, options, onFinished }: Props) {
   return (
     <section>
       <p className="muted">
-        Question {index + 1} of {quiz.questions.length} ({options.difficulty})
+        {t("questionOf", {
+          n: index + 1,
+          total: quiz.questions.length,
+          level: t(LEVELS[options.difficulty]),
+        })}
       </p>
       {fewer && index === 0 && (
         <p className="muted">
-          You asked for {options.count}, but these notes only had enough for{" "}
-          {quiz.questions.length} different questions.
+          {t("fewerQuestions", { asked: options.count, got: quiz.questions.length })}
         </p>
       )}
       <h2>{question.prompt}</h2>
@@ -64,7 +75,7 @@ export function QuizPage({ quiz, options, onFinished }: Props) {
 
       <form onSubmit={submit}>
         <textarea
-          aria-label="Your answer"
+          aria-label={t("yourAnswer")}
           rows={4}
           value={answer}
           onChange={(event) => setAnswer(event.target.value)}
@@ -73,7 +84,7 @@ export function QuizPage({ quiz, options, onFinished }: Props) {
         <div className="row">
           <RecordAnswerButton onTranscript={setAnswer} disabled={busy || result !== null} />
           <button type="submit" disabled={busy || result !== null || !answer.trim()}>
-            {busy ? "Marking…" : "Submit answer"}
+            {busy ? t("marking") : t("submitAnswer")}
           </button>
         </div>
       </form>
@@ -82,13 +93,13 @@ export function QuizPage({ quiz, options, onFinished }: Props) {
 
       {result && (
         <div className={result.correct ? "result good" : "result bad"}>
-          <strong>{result.correct ? "Correct" : "Not quite"}</strong>
+          <strong>{result.correct ? t("correct") : t("notQuite")}</strong>
           <p>{result.feedback}</p>
           <blockquote>{result.source.quote}</blockquote>
           <p className="muted">
-            From {result.source.documentName}, page {result.source.page}
+            {t("fromSource", { name: result.source.documentName, page: result.source.page })}
           </p>
-          <button onClick={next}>{isLast ? "See results" : "Next question"}</button>
+          <button onClick={next}>{isLast ? t("seeResults") : t("nextQuestion")}</button>
         </div>
       )}
     </section>

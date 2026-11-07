@@ -33,7 +33,7 @@ From then on, the app doesn't need the internet:
 npm run dev
 ```
 
-Then open <http://127.0.0.1:5173>. The app opens on the chat page, and the Quiz button in the sidebar switches to quizzes. Press Enter to send a message and Shift+Enter for a new line. Attach your notes to ask about them. You can use `.txt`, `.md`, `.pdf`, `.pptx`, `.png`, `.jpg` and `.webp` files. Export older `.ppt` slides as PDF first.
+Then open <http://127.0.0.1:5173>. The app opens on the chat page, and the Quiz button in the sidebar switches to quizzes. Press Enter to send a message and Shift+Enter for a new line. Attach your notes to ask about them. The Language menu in the sidebar switches the app and the AI's replies to Uzbek, but voice stays English-only. You can use `.txt`, `.md`, `.pdf`, `.pptx`, `.png`, `.jpg` and `.webp` files. Export older `.ppt` slides as PDF first.
 
 On a laptop with a dedicated graphics card, try `LLM_DEVICE=gpu` when you start the server. The default is the CPU, because it beat integrated graphics in our tests.
 

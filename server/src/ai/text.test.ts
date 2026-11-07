@@ -73,6 +73,7 @@ test("pickSpread spreads picks across the notes and repeats only when it must", 
 test("mentionsNotes spots requests about the notes in general", () => {
   assert.equal(mentionsNotes("Summarise my notes please"), true);
   assert.equal(mentionsNotes("what does this PDF say?"), true);
+  assert.equal(mentionsNotes("Konspektlarimni qisqacha tushuntiring"), true);
   assert.equal(mentionsNotes("What is the capital of Japan?"), false);
   assert.equal(mentionsNotes("hi"), false);
 });

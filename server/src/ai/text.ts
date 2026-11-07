@@ -75,7 +75,7 @@ export function cosineSimilarity(a: number[], b: number[]): number {
  * low against every passage even though the student clearly wants their notes.
  */
 export function mentionsNotes(text: string): boolean {
-  return /\b(my|these|this|the|our)\s+(notes?|slides?|lectures?|documents?|files?|pdfs?|materials?)\b/i.test(
+  return /\b(my|these|this|the|our)\s+(notes?|slides?|lectures?|documents?|files?|pdfs?|materials?)\b|konspekt/i.test(
     text,
   );
 }

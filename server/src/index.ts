@@ -13,7 +13,14 @@ import type {
   SpeakRequest,
   TranscribeResponse,
 } from "../../shared/types";
-import { AI_IS_PLACEHOLDER, chat, DIFFICULTIES, generateQuestions, markAnswer } from "./ai/index";
+import {
+  AI_IS_PLACEHOLDER,
+  chat,
+  DIFFICULTIES,
+  generateQuestions,
+  markAnswer,
+  toLanguage,
+} from "./ai/index";
 import { currentActivity, modelStatuses, setActivity, warmUp } from "./ai/models";
 import { ensureIndexed, removeFromIndex } from "./ai/rag";
 import { IMPORT_IS_PLACEHOLDER, importFile } from "./import/index";
@@ -99,7 +106,7 @@ app.delete("/api/documents/:id", (req, res) => {
 });
 
 app.post("/api/chat", async (req, res) => {
-  const { messages } = req.body as ChatRequest;
+  const { messages, language } = req.body as ChatRequest;
   const valid =
     Array.isArray(messages) &&
     messages.length > 0 &&
@@ -117,7 +124,7 @@ app.post("/api/chat", async (req, res) => {
   res.on("close", () => stopped.abort());
   try {
     await ensureIndexed(store.listDocuments());
-    await chat(messages, send, stopped.signal);
+    await chat(messages, send, stopped.signal, toLanguage(language));
     send({ type: "done" });
   } catch (error) {
     console.error(error);
@@ -127,7 +134,7 @@ app.post("/api/chat", async (req, res) => {
 });
 
 app.post("/api/quizzes", async (req, res) => {
-  const { documentIds, count, difficulty = "medium" } = req.body as CreateQuizRequest;
+  const { documentIds, count, difficulty = "medium", language } = req.body as CreateQuizRequest;
   if (!DIFFICULTIES.includes(difficulty)) {
     throw new BadRequest("Choose easy, medium or hard.");
   }
@@ -146,6 +153,7 @@ app.post("/api/quizzes", async (req, res) => {
       documents,
       Math.max(1, Math.min(Number(count) || DEFAULT_QUESTIONS, MAX_QUESTIONS)),
       difficulty,
+      toLanguage(language),
     ),
     createdAt: new Date().toISOString(),
   };
@@ -158,11 +166,11 @@ app.post("/api/quizzes/:quizId/questions/:questionId/answer", async (req, res) =
     .getQuiz(req.params.quizId)
     ?.questions.find((q) => q.id === req.params.questionId);
   if (!question) throw new BadRequest("Unknown question.");
-  const { answer } = req.body as AnswerRequest;
+  const { answer, language } = req.body as AnswerRequest;
   if (typeof answer !== "string" || !answer.trim()) {
     throw new BadRequest("Answer is empty.");
   }
-  res.json(await markAnswer(question, answer));
+  res.json(await markAnswer(question, answer, toLanguage(language)));
 });
 
 app.post("/api/voice/transcribe", upload.single("audio"), async (req, res) => {

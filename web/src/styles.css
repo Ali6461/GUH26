@@ -88,3 +88,35 @@ blockquote {
 .result.bad {
   border-color: #dc2626;
 }
+
+/* Shared files */
+.collab-title {
+  margin: 0;
+}
+
+.collab-text {
+  min-height: 60vh;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 14px;
+  resize: vertical;
+}
+
+.collab-code {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.collab-input {
+  flex: 1;
+  min-width: 240px;
+  padding: 8px;
+  font: inherit;
+}
+
+.file-button {
+  padding: 8px 16px;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  cursor: pointer;
+}

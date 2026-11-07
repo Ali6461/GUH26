@@ -37,6 +37,14 @@ Then open <http://127.0.0.1:5173> and upload your notes. You can use `.txt`, `.m
 
 On a laptop with a dedicated graphics card, try `LLM_DEVICE=gpu` when you start the server. The default is the CPU, because it beat integrated graphics in our tests.
 
+## Shared files
+
+Open **Shared files** to edit a text file live with classmates on the same Wi-Fi or phone hotspot, with no internet. Share a file, and other laptops see it under **Nearby** within a few seconds. Anyone who opens it can read straight away and edit once a laptop that already has it lets them in, which happens on its own.
+
+Each file is a [Pears Autobase](https://docs.pears.com/p2p/reference/building-blocks/autobase/) stored in `data/collab`. Laptops find each other with a UDP broadcast on port 49737 and sync over an encrypted TCP connection on the same port. Windows asks to let Node through the firewall the first time. Allow it on private networks. If a network blocks broadcasts, connect by IP address under **Laptop not showing up?**. The code lives in `server/src/collab/`, `web/src/collab/` and `shared/collab.ts`.
+
+Anyone on the same network can see and join a shared file, so don't share private notes on public Wi-Fi.
+
 ## Who owns what
 
 Each person mostly works in their own folder, so you shouldn't get many merge conflicts.

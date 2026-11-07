@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import type { Health, MarkResult, Quiz } from "../../shared/types";
 import { api } from "./api";
+import { CollabPage } from "./collab/CollabPage";
 import { ImportPage } from "./pages/ImportPage";
 import { QuizPage } from "./pages/QuizPage";
 import { ResultsPage } from "./pages/ResultsPage";
@@ -9,7 +10,8 @@ import { ResultsPage } from "./pages/ResultsPage";
 type Screen =
   | { name: "import" }
   | { name: "quiz"; quiz: Quiz }
-  | { name: "results"; results: MarkResult[] };
+  | { name: "results"; results: MarkResult[] }
+  | { name: "collab" };
 
 export function App() {
   const [screen, setScreen] = useState<Screen>({ name: "import" });
@@ -29,6 +31,20 @@ export function App() {
   return (
     <main className="app">
       <h1>GUH26 Revision</h1>
+      <nav className="row">
+        <button
+          className={screen.name === "collab" ? "secondary" : ""}
+          onClick={() => setScreen({ name: "import" })}
+        >
+          Revise
+        </button>
+        <button
+          className={screen.name === "collab" ? "" : "secondary"}
+          onClick={() => setScreen({ name: "collab" })}
+        >
+          Shared files
+        </button>
+      </nav>
 
       {serverDown && (
         <p className="banner error">Can't reach the local server. Is it running?</p>
@@ -52,6 +68,7 @@ export function App() {
           onRestart={() => setScreen({ name: "import" })}
         />
       )}
+      {screen.name === "collab" && <CollabPage />}
     </main>
   );
 }

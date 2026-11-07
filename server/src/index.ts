@@ -23,6 +23,7 @@ import {
 } from "./ai/index";
 import { currentActivity, modelStatuses, setActivity, warmUp } from "./ai/models";
 import { ensureIndexed, removeFromIndex } from "./ai/rag";
+import { attachCollabSockets, collab, CollabBadRequest, collabRouter } from "./collab/routes";
 import { IMPORT_IS_PLACEHOLDER, importFile } from "./import/index";
 import { store } from "./store";
 import { speak, transcribe, VOICE_IS_PLACEHOLDER } from "./voice/index";
@@ -47,14 +48,17 @@ const upload = multer({
   limits: { fileSize: MAX_UPLOAD_BYTES },
 });
 
+function isLocalRequest(host?: string, origin?: string): boolean {
+  return (
+    LOCAL_HOSTS.includes(host ?? "") &&
+    (!origin || LOCAL_HOSTS.some((local) => origin === `http://${local}`))
+  );
+}
+
 // Listening on 127.0.0.1 doesn't stop a website open in the student's browser from
 // calling this server, so only accept requests that come from this app.
 app.use((req, res, next) => {
-  const origin = req.get("origin");
-  const allowed =
-    LOCAL_HOSTS.includes(req.get("host") ?? "") &&
-    (!origin || LOCAL_HOSTS.some((host) => origin === `http://${host}`));
-  if (allowed) {
+  if (isLocalRequest(req.get("host"), req.get("origin"))) {
     next();
     return;
   }
@@ -191,10 +195,14 @@ app.post("/api/voice/speak", async (req, res) => {
   res.type(audio.mimeType).send(audio.bytes);
 });
 
+// Shared files, edited together with nearby laptops. See collab/index.ts.
+app.use("/api/collab", collabRouter);
+
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   // Express marks malformed request bodies with status 400.
   const known =
     err instanceof BadRequest ||
+    err instanceof CollabBadRequest ||
     err instanceof multer.MulterError ||
     (err as { status?: number }).status === 400;
   if (!known) console.error(err);
@@ -204,7 +212,12 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   res.status(known ? 400 : 500).json(body);
 });
 
-app.listen(PORT, HOST, () => {
+const server = app.listen(PORT, HOST, () => {
   console.log(`Server running at http://${HOST}:${PORT}`);
   void warmUp().catch((error) => console.error(error));
 });
+attachCollabSockets(server, isLocalRequest);
+collab.start().then(
+  () => console.log(`Shared files: accepting nearby laptops on port ${collab.port}`),
+  (error) => console.error("Shared files couldn't start:", error),
+);

@@ -1041,3 +1041,113 @@ blockquote {
     grid-template-columns: 1fr;
   }
 }
+
+/* Shared files, in the same design as the other pages. */
+/* The top bar already shows this page's title. */
+.shared-view > section > h2 {
+  display: none;
+}
+
+.shared-view > section > .row {
+  margin-top: 16px;
+}
+
+.shared-view h3 {
+  margin: 32px 0 12px;
+  color: var(--led);
+  font-family: var(--board);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 20px;
+  text-transform: uppercase;
+}
+
+.documents {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.documents li {
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-panel);
+}
+
+.shared-view details {
+  margin-top: 24px;
+  color: var(--muted);
+}
+
+.shared-view summary {
+  cursor: pointer;
+}
+
+.shared-view details .row {
+  margin-top: 12px;
+}
+
+.shared-view .banner {
+  margin-top: 16px;
+}
+
+.collab-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 28px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Fills most of the main area, leaving room for the header, banners and the code row. */
+.collab-text {
+  display: block;
+  min-height: max(240px, calc(100vh - 280px));
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 14px;
+  resize: vertical;
+}
+
+.collab-code {
+  min-width: 0;
+  padding: 4px 8px;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.collab-input {
+  flex: 1;
+  box-sizing: border-box;
+  min-width: 240px;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--bg-panel);
+  color: var(--text);
+  font: inherit;
+}
+
+@media (max-width: 700px) {
+  /* The sidebar takes the top of the screen here, so the editor gets less height. */
+  .collab-text {
+    min-height: 40vh;
+  }
+
+  .collab-input {
+    min-width: 0;
+  }
+}

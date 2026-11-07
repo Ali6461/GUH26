@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { Health, Language, MarkResult, Quiz } from "../../shared/types";
 import { api } from "./api";
+import { CollabPage } from "./collab/CollabPage";
 import { useChat } from "./chat/useChat";
 import { useDocuments } from "./chat/useDocuments";
 import { Icon, type IconName } from "./Icon";
@@ -13,7 +14,7 @@ import { NotesPage } from "./pages/NotesPage";
 import { QuizPage } from "./pages/QuizPage";
 import { ResultsPage } from "./pages/ResultsPage";
 
-type View = "notes" | "chat" | "quiz";
+type View = "notes" | "chat" | "quiz" | "shared";
 
 type Screen =
   | { name: "import" }
@@ -26,6 +27,7 @@ const NAV: { view: View; icon: IconName; label: MessageKey }[] = [
   { view: "notes", icon: "file", label: "modeNotes" },
   { view: "chat", icon: "chat", label: "modeChat" },
   { view: "quiz", icon: "quiz", label: "modeQuiz" },
+  { view: "shared", icon: "share", label: "modeShared" },
 ];
 
 /** What the chat model and the current job are doing, if anything. */
@@ -263,6 +265,13 @@ function AppContent() {
                 onRestart={() => setScreen({ name: "import" })}
               />
             )}
+          </div>
+        </div>
+
+        {/* Hidden too, so an open shared file stays connected. */}
+        <div className="scroll-view" hidden={view !== "shared"}>
+          <div className="page shared-view">
+            <CollabPage />
           </div>
         </div>
       </main>

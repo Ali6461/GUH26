@@ -57,7 +57,7 @@ All of this ran on one laptop: Intel i5-12450H, 16 GB of RAM and integrated grap
 | Question | Answer |
 |---|---|
 | Does Qwen3 4B run, and how fast? | Yes. It writes about 12 tokens a second on the CPU and 7 on integrated graphics. Chat starts answering in about 5 seconds. |
-| How long do quizzes take? | About 10 seconds per question, so 5 questions take about a minute. Marking an answer takes about 7 seconds. |
+| How long do quizzes take? | On 171 pages of real notes, about 15 seconds per easy question and 25 per hard one, so 5 questions take 1 to 2 minutes. Marking an answer takes about 7 seconds. |
 | Can OCR read scans and photos? | Clean print, yes, in about 2 seconds a page. Handwriting only partly: a sideways photo of neat capitals came out as a mix of correct phrases and garbage, in about 13 seconds. The app warns about pages like this. Don't promise handwriting in the demo. |
 | Can speech and the 4B model run together? | Yes. All five models took about 6.3 GB of RAM together, and speech stayed quick: about 1 second to transcribe or to read aloud. |
 | Does it stay offline? | Across 96 samples while models loaded and answered, the server and QVAC held no connections beyond this laptop. Do a full test with Wi-Fi off before the demo. |
@@ -122,7 +122,7 @@ Local Node server (port 3001)
 | `POST /api/documents` | Imports the uploaded `file` and adds it to RAG search |
 | `DELETE /api/documents/:id` | Deletes notes, their search data and any quizzes built from them |
 | `POST /api/chat` | Answers `{ messages }` from the notes, streaming one JSON event per line |
-| `POST /api/quizzes` | Creates a quiz from `{ documentIds, count }` |
+| `POST /api/quizzes` | Creates a quiz from `{ documentIds, count, difficulty }`, where `difficulty` is `easy`, `medium` or `hard` |
 | `POST /api/quizzes/:quizId/questions/:questionId/answer` | Marks `{ answer }` |
 | `POST /api/voice/transcribe` | Turns the uploaded `audio` into text. It must be WAV, which `VoiceControls` handles in the browser |
 | `POST /api/voice/speak` | Turns `{ text }` into audio |

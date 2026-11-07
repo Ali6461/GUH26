@@ -84,9 +84,13 @@ export interface Health {
   activity: string | null;
 }
 
+export type Difficulty = "easy" | "medium" | "hard";
+
 export interface CreateQuizRequest {
   documentIds: string[];
   count: number;
+  /** Defaults to medium. */
+  difficulty?: Difficulty;
 }
 
 export interface AnswerRequest {

@@ -4,6 +4,7 @@ import { cancel, completion } from "@qvac/sdk";
 import type {
   ChatEvent,
   ChatMessage,
+  Difficulty,
   MarkResult,
   Question,
   StudyDocument,
@@ -26,7 +27,10 @@ export const AI_IS_PLACEHOLDER = false;
 const NO_THINK = "/no_think";
 
 const MAX_ANSWER_TOKENS = 1024;
-const MAX_JSON_TOKENS = 220;
+const MAX_JSON_TOKENS = 300;
+const MAX_MISSES_IN_A_ROW = 3;
+/** Shorter than this, a passage has nothing left to ask about. */
+const MIN_REMAINING_CHARS = 40;
 /** About 1,500 tokens, which leaves room for the notes and the reply in the model's memory. */
 const MAX_MESSAGE_CHARS = 6000;
 /** EmbeddingGemma's limit is 2,048 tokens, and the start of a message says what it's about. */
@@ -38,6 +42,21 @@ const MAX_HISTORY_CHARS = 700;
 const SHORT_FOLLOW_UP_CHARS = 40;
 
 type ChatTurn = { role: "system" | "user" | "assistant"; content: string };
+
+const QUESTION_STYLES: Record<Difficulty, string> = {
+  easy:
+    "Write one easy question that asks for a single fact or definition stated directly in " +
+    "the notes, which can be answered in a few words.",
+  medium:
+    "Write one medium question that asks the student to explain an important idea from the " +
+    "notes in their own words.",
+  hard:
+    "Write one hard question that makes the student reason, not just remember: for example, " +
+    "why something in the notes happens, or how two ideas in the notes connect. Everything " +
+    "needed for the answer must be in the notes, so don't ask about situations they don't cover.",
+};
+
+export const DIFFICULTIES = Object.keys(QUESTION_STYLES) as Difficulty[];
 
 async function askForJson(
   history: ChatTurn[],
@@ -67,7 +86,17 @@ async function askForJson(
   });
 }
 
-async function writeQuestion(passage: Passage, asked: string[]): Promise<Question | null> {
+async function writeQuestion(
+  passage: Passage,
+  asked: Question[],
+  difficulty: Difficulty,
+): Promise<Question | null> {
+  // The model tends to pick the same sentence again, even when told not to, so hide
+  // the sentences that already have a question. Stop if there's too little left.
+  const remaining = asked
+    .reduce((text, question) => text.replace(question.source.quote, " "), passage.text)
+    .trim();
+  if (remaining.length < MIN_REMAINING_CHARS) return null;
   const reply = await askForJson(
     [
       {
@@ -79,9 +108,11 @@ async function writeQuestion(passage: Passage, asked: string[]): Promise<Questio
       {
         role: "user",
         content:
-          `Study notes:\n"""\n${passage.text}\n"""\n\n` +
-          (asked.length > 0 ? `Don't repeat these questions:\n- ${asked.join("\n- ")}\n\n` : "") +
-          "Write one question that tests understanding of an important idea in the notes. " +
+          `Study notes:\n"""\n${remaining}\n"""\n\n` +
+          (asked.length > 0
+            ? `Don't repeat these questions:\n- ${asked.map((q) => q.prompt).join("\n- ")}\n\n`
+            : "") +
+          `${QUESTION_STYLES[difficulty]} ` +
           'It must make sense on its own, so never say "the passage" or "the notes".\n' +
           'Reply in JSON. "question": the question. "answer": a correct answer in one or two ' +
           'sentences. "quote": the sentence copied word for word from the notes that proves ' +
@@ -93,7 +124,7 @@ async function writeQuestion(passage: Passage, asked: string[]): Promise<Questio
 
   const question = typeof reply?.question === "string" ? reply.question.trim() : "";
   const answer = typeof reply?.answer === "string" ? reply.answer.trim() : "";
-  const quote = typeof reply?.quote === "string" ? verifyQuote(reply.quote, passage.text) : null;
+  const quote = typeof reply?.quote === "string" ? verifyQuote(reply.quote, remaining) : null;
   // A question whose quote can't be found in the notes is thrown away.
   if (!question || !answer || !quote) return null;
 
@@ -113,6 +144,7 @@ async function writeQuestion(passage: Passage, asked: string[]): Promise<Questio
 export async function generateQuestions(
   documents: StudyDocument[],
   count: number,
+  difficulty: Difficulty = "medium",
 ): Promise<Question[]> {
   const passages = documents.flatMap(documentPassages);
   const questions: Question[] = [];
@@ -122,17 +154,21 @@ export async function generateQuestions(
     ...pickSpread(passages, Math.ceil(count / 2)),
   ];
 
+  let misses = 0;
   try {
     for (const passage of attempts) {
-      if (questions.length >= count) break;
+      // Short notes run out of new questions, and each extra try costs about 10 seconds.
+      if (questions.length >= count || misses >= MAX_MISSES_IN_A_ROW) break;
       setActivity(`Writing question ${questions.length + 1} of ${count}`);
-      const question = await writeQuestion(
-        passage,
-        questions.map((q) => q.prompt),
-      );
+      const question = await writeQuestion(passage, questions, difficulty);
       // Two questions proving the same sentence are really one question asked twice.
       const repeated = questions.some((q) => q.source.quote === question?.source.quote);
-      if (question && !repeated) questions.push(question);
+      if (question && !repeated) {
+        questions.push(question);
+        misses = 0;
+      } else {
+        misses++;
+      }
     }
   } finally {
     setActivity(null);

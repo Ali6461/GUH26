@@ -13,7 +13,7 @@ import type {
   SpeakRequest,
   TranscribeResponse,
 } from "../../shared/types";
-import { AI_IS_PLACEHOLDER, chat, generateQuestions, markAnswer } from "./ai/index";
+import { AI_IS_PLACEHOLDER, chat, DIFFICULTIES, generateQuestions, markAnswer } from "./ai/index";
 import { currentActivity, modelStatuses, setActivity, warmUp } from "./ai/models";
 import { ensureIndexed, removeFromIndex } from "./ai/rag";
 import { IMPORT_IS_PLACEHOLDER, importFile } from "./import/index";
@@ -127,7 +127,10 @@ app.post("/api/chat", async (req, res) => {
 });
 
 app.post("/api/quizzes", async (req, res) => {
-  const { documentIds, count } = req.body as CreateQuizRequest;
+  const { documentIds, count, difficulty = "medium" } = req.body as CreateQuizRequest;
+  if (!DIFFICULTIES.includes(difficulty)) {
+    throw new BadRequest("Choose easy, medium or hard.");
+  }
   if (!Array.isArray(documentIds) || documentIds.length === 0) {
     throw new BadRequest("Choose at least one document.");
   }
@@ -141,7 +144,8 @@ app.post("/api/quizzes", async (req, res) => {
     documentIds,
     questions: await generateQuestions(
       documents,
-      Math.min(Number(count) || DEFAULT_QUESTIONS, MAX_QUESTIONS),
+      Math.max(1, Math.min(Number(count) || DEFAULT_QUESTIONS, MAX_QUESTIONS)),
+      difficulty,
     ),
     createdAt: new Date().toISOString(),
   };

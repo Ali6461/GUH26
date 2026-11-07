@@ -6,7 +6,7 @@ import { api } from "./api";
 import { useChat } from "./chat/useChat";
 import { useDocuments } from "./chat/useDocuments";
 import { ChatPage } from "./pages/ChatPage";
-import { ImportPage } from "./pages/ImportPage";
+import { DEFAULT_QUIZ_OPTIONS, ImportPage } from "./pages/ImportPage";
 import { QuizPage } from "./pages/QuizPage";
 import { ResultsPage } from "./pages/ResultsPage";
 
@@ -33,6 +33,8 @@ function statusText(health: Health | null): string {
 export function App() {
   const [view, setView] = useState<View>("chat");
   const [screen, setScreen] = useState<Screen>({ name: "import" });
+  // Kept here so the settings are still there after "Revise again".
+  const [quizOptions, setQuizOptions] = useState(DEFAULT_QUIZ_OPTIONS);
   const [health, setHealth] = useState<Health | null>(null);
   const [serverDown, setServerDown] = useState(false);
   const chat = useChat();
@@ -189,12 +191,15 @@ export function App() {
             {screen.name === "import" && (
               <ImportPage
                 documents={documents}
+                options={quizOptions}
+                onOptionsChange={setQuizOptions}
                 onQuizReady={(quiz) => setScreen({ name: "quiz", quiz })}
               />
             )}
             {screen.name === "quiz" && (
               <QuizPage
                 quiz={screen.quiz}
+                options={quizOptions}
                 onFinished={(results) => setScreen({ name: "results", results })}
               />
             )}

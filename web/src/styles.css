@@ -181,6 +181,11 @@ nav [aria-current] {
   overflow-y: auto;
 }
 
+.quiz-options {
+  margin-bottom: 12px;
+  gap: 16px;
+}
+
 .chat {
   display: flex;
   flex: 1;

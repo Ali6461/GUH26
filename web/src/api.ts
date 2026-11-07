@@ -3,6 +3,7 @@ import type {
   ApiError,
   ChatEvent,
   ChatMessage,
+  Difficulty,
   Health,
   MarkResult,
   Quiz,
@@ -70,8 +71,8 @@ export const api = {
     }
   },
 
-  createQuiz: (documentIds: string[], count: number) =>
-    postJson<Quiz>("/api/quizzes", { documentIds, count }),
+  createQuiz: (documentIds: string[], count: number, difficulty: Difficulty) =>
+    postJson<Quiz>("/api/quizzes", { documentIds, count, difficulty }),
 
   answer: (quizId: string, questionId: string, answer: string) =>
     postJson<MarkResult>(`/api/quizzes/${quizId}/questions/${questionId}/answer`, { answer }),

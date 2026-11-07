@@ -2,14 +2,16 @@
 import { useState, type FormEvent } from "react";
 import type { MarkResult, Quiz } from "../../../shared/types";
 import { api } from "../api";
+import type { QuizOptions } from "./ImportPage";
 import { ReadAloudButton, RecordAnswerButton } from "../voice/VoiceControls";
 
 interface Props {
   quiz: Quiz;
+  options: QuizOptions;
   onFinished: (results: MarkResult[]) => void;
 }
 
-export function QuizPage({ quiz, onFinished }: Props) {
+export function QuizPage({ quiz, options, onFinished }: Props) {
   const [index, setIndex] = useState(0);
   const [answer, setAnswer] = useState("");
   const [result, setResult] = useState<MarkResult | null>(null);
@@ -19,6 +21,7 @@ export function QuizPage({ quiz, onFinished }: Props) {
 
   const question = quiz.questions[index];
   const isLast = index === quiz.questions.length - 1;
+  const fewer = quiz.questions.length < options.count;
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -48,8 +51,14 @@ export function QuizPage({ quiz, onFinished }: Props) {
   return (
     <section>
       <p className="muted">
-        Question {index + 1} of {quiz.questions.length}
+        Question {index + 1} of {quiz.questions.length} ({options.difficulty})
       </p>
+      {fewer && index === 0 && (
+        <p className="muted">
+          You asked for {options.count}, but these notes only had enough for{" "}
+          {quiz.questions.length} different questions.
+        </p>
+      )}
       <h2>{question.prompt}</h2>
       <ReadAloudButton text={question.prompt} />
 
